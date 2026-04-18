@@ -1,0 +1,1 @@
+convert the html to 👉 Frontend = Next.js (React) with TypeScript with good folder structure and package.json and also hardoceded data make it into ts 
