@@ -36,7 +36,7 @@ export function AppShell({ activeSidebar, navLabel, children, actions, navLinks,
         <div className="nav-links">{navLinks}</div>
         <div className="nav-actions">
           {showDashboardLink ? (
-            <Link className="profile-chip" href="/dashboard" style={{ cursor: 'pointer' }}>
+            <Link className="profile-chip" href="/profile" style={{ cursor: 'pointer' }}>
               <img alt="Jane Doe profile picture" src="https://i.pravatar.cc/68?img=47" />
               <div className="profile-text">
                 <div className="profile-name">Jane Doe</div>
@@ -57,6 +57,7 @@ export function AppShell({ activeSidebar, navLabel, children, actions, navLinks,
               {item.label}
             </Link>
           ))}
+          <div style={{ flex: 1 }} />
         </aside>
         <main className="main-content">
           {navLabel ? <div className="page-header">{navLabel}</div> : null}
