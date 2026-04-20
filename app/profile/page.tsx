@@ -8,18 +8,35 @@ import { umuravaStore, type ScreeningResult } from '@/lib/umurava-store';
 
 export default function ProfilePage() {
   const [candidate, setCandidate] = useState<ScreeningResult | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ firstName: '', lastName: '', headline: '', email: '', location: '', bio: '' });
 
   useEffect(() => {
     const storedId = window.localStorage.getItem('umurava.selectedProfileId');
     const pool = umuravaStore.getLatestScreeningResults().length ? umuravaStore.getLatestScreeningResults() : umuravaStore.getCandidates();
     const found = pool.find((item) => String(item.id) === String(storedId)) || pool[0];
     setCandidate((found as ScreeningResult) || null);
+    if (found) {
+      setForm({
+        firstName: found.personalInfo.firstName || '',
+        lastName: found.personalInfo.lastName || '',
+        headline: found.personalInfo.headline || '',
+        email: found.personalInfo.email || '',
+        location: found.personalInfo.location || '',
+        bio: found.personalInfo.bio || ''
+      });
+    }
   }, []);
 
   const initials = useMemo(() => {
     if (!candidate) return '';
     return `${candidate.personalInfo.firstName?.[0] || ''}${candidate.personalInfo.lastName?.[0] || ''}`.toUpperCase();
   }, [candidate]);
+
+  function handleSave() {
+    setEditing(false);
+    showToast('Profile updated successfully.', 'success');
+  }
 
   if (!candidate) {
     return (
@@ -44,40 +61,58 @@ export default function ProfilePage() {
         </>
       }
       actions={
-        <button
-          className="btn btn-success"
-          onClick={() => {
-            umuravaStore.markInterview(candidate.id);
-            showToast('Candidate approved and sent to interview.', 'success');
-          }}
-          type="button"
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-            check
-          </span>{' '}
-          Confirm & Move to Interview
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className={`btn ${editing ? 'btn-ghost' : 'btn-primary'} btn-sm`}
+            onClick={() => editing ? setEditing(false) : setEditing(true)}
+            type="button"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>{editing ? 'close' : 'edit'}</span>
+            {editing ? 'Cancel' : 'Update Profile'}
+          </button>
+          {editing && (
+            <button className="btn btn-success btn-sm" onClick={handleSave} type="button">
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>check</span>
+              Save Changes
+            </button>
+          )}
+          {!editing && (
+            <button
+              className="btn btn-success btn-sm"
+              onClick={() => { umuravaStore.markInterview(candidate.id); showToast('Candidate approved and sent to interview.', 'success'); }}
+              type="button"
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>check</span>
+              Move to Interview
+            </button>
+          )}
+        </div>
       }
     >
       <div className="profile-layout" id="profile-content">
         <div className="profile-sidebar-card">
           <div className="profile-avatar">{initials}</div>
-          <div className="profile-name">
-            {candidate.personalInfo.firstName} {candidate.personalInfo.lastName}
-          </div>
-          <div className="profile-headline">{candidate.personalInfo.headline}</div>
-          <div className="profile-meta-item">
-            <span className="material-symbols-outlined">location_on</span> {candidate.personalInfo.location}
-          </div>
-          <div className="profile-meta-item">
-            <span className="material-symbols-outlined">mail</span> {candidate.personalInfo.email}
-          </div>
-          <div className="profile-meta-item">
-            <span className="material-symbols-outlined" style={{ color: 'var(--green)' }}>
-              check_circle
-            </span>{' '}
-            {candidate.availability?.status || 'Available'} ({candidate.availability?.type || 'Full-time'})
-          </div>
+          {editing ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', marginTop: 12 }}>
+              <input className="profile-edit-input" value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} placeholder="First name" />
+              <input className="profile-edit-input" value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} placeholder="Last name" />
+              <input className="profile-edit-input" value={form.headline} onChange={e => setForm(f => ({ ...f, headline: e.target.value }))} placeholder="Headline" />
+              <input className="profile-edit-input" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="Email" />
+              <input className="profile-edit-input" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="Location" />
+              <textarea className="profile-edit-input" value={form.bio} onChange={e => setForm(f => ({ ...f, bio: e.target.value }))} placeholder="Bio" rows={3} style={{ resize: 'vertical' }} />
+            </div>
+          ) : (
+            <>
+              <div className="profile-name">{candidate.personalInfo.firstName} {candidate.personalInfo.lastName}</div>
+              <div className="profile-headline">{candidate.personalInfo.headline}</div>
+              <div className="profile-meta-item"><span className="material-symbols-outlined">location_on</span> {candidate.personalInfo.location}</div>
+              <div className="profile-meta-item"><span className="material-symbols-outlined">mail</span> {candidate.personalInfo.email}</div>
+              <div className="profile-meta-item">
+                <span className="material-symbols-outlined" style={{ color: 'var(--green)' }}>check_circle</span>{' '}
+                {candidate.availability?.status || 'Available'} ({candidate.availability?.type || 'Full-time'})
+              </div>
+            </>
+          )}
           <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
             <div className="profile-section-title">AI Screening Score</div>
             <div style={{ fontSize: 36, fontWeight: 800, color: 'var(--primary)', fontFamily: 'DM Mono, monospace' }}>

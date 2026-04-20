@@ -1,4 +1,4 @@
-﻿
+
   :root {
     /* Blue & White Light Theme Palette */
     --bg: #F8FAFC;
@@ -24,9 +24,9 @@
   }
   *{margin:0;padding:0;box-sizing:border-box;}
   html{scroll-behavior:smooth;}
-  body{background:linear-gradient(160deg,var(--hero-bg-start) 0%,var(--hero-bg-mid) 40%,var(--bg) 100%);background-attachment:fixed;color:var(--text);font-family:'Syne',sans-serif;overflow-x:hidden;min-height:100vh;-webkit-font-smoothing:antialiased;font-feature-settings:"ss01","cv11";letter-spacing:-0.005em;}
+  body{background:linear-gradient(160deg,var(--hero-bg-start) 0%,var(--hero-bg-mid) 40%,var(--bg) 100%);background-attachment:fixed;color:var(--text);font-family:'Roboto',sans-serif;overflow-x:hidden;min-height:100vh;-webkit-font-smoothing:antialiased;font-feature-settings:"ss01","cv11";letter-spacing:-0.005em;}
 
-  /* â”€â”€â”€â”€ ICONS CONFIG â”€â”€â”€â”€ */
+  /* ──── ICONS CONFIG ──── */
   .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
     display: inline-flex;
@@ -35,23 +35,23 @@
     vertical-align: middle;
   }
 
-  /* â”€â”€â”€â”€ SCROLLBAR â”€â”€â”€â”€ */
+  /* ──── SCROLLBAR ──── */
   ::-webkit-scrollbar{width:4px;}
   ::-webkit-scrollbar-track{background:var(--bg);}
   ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
 
-  /* â”€â”€â”€â”€ NOISE OVERLAY â”€â”€â”€â”€ */
+  /* ──── NOISE OVERLAY ──── */
   body::before{
     content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
     background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
     opacity:0.02;
   }
 
-  /* â”€â”€â”€â”€ PAGES â”€â”€â”€â”€ */
+  /* ──── PAGES ──── */
   .page{display:none;min-height:100vh;position:relative;z-index:1;}
   .page.active{display:flex;flex-direction:column;padding-top:70px;}
 
-  /* â”€â”€â”€â”€ NAV â”€â”€â”€â”€ */
+  /* ──── NAV ──── */
   nav{
     display:flex;align-items:center;justify-content:space-between;
     padding:16px 40px;
@@ -90,7 +90,7 @@
   .btn{
     display:inline-flex;align-items:center;gap:6px;
     padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;
-    cursor:pointer;border:none;transition:all 0.2s;font-family:'Syne',sans-serif;
+    cursor:pointer;border:none;transition:all 0.2s;font-family:'Roboto',sans-serif;
     letter-spacing:0.2px;
   }
   .btn-ghost{background:transparent;color:var(--text-muted);border:1px solid var(--border2);}
@@ -101,7 +101,7 @@
   .btn-danger{background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,0.25);}
   .btn-success{background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,0.25);}
 
-  /* â”€â”€â”€â”€ HOME PAGE â”€â”€â”€â”€ */
+  /* ──── HOME PAGE ──── */
   .hero{
     flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
     text-align:center;padding:80px 40px;position:relative;overflow:hidden;
@@ -168,7 +168,7 @@
   .feature-desc{font-size:13px;color:var(--text-muted);line-height:1.7;}
   @keyframes fadeUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
 
-  /* â”€â”€â”€â”€ LOGIN PAGE â”€â”€â”€â”€ */
+  /* ──── LOGIN PAGE ──── */
   .login-wrapper {
     flex:1; display:flex; align-items:center; justify-content:center; padding:40px;
     position: relative; overflow: hidden;
@@ -184,7 +184,7 @@
   .login-form { display: flex; flex-direction: column; gap: 16px; text-align: left; }
   .login-btn-wrap { margin-top: 8px; }
 
-  /* â”€â”€â”€â”€ DASHBOARD â”€â”€â”€â”€ */
+  /* ──── DASHBOARD ──── */
   .dash-layout{display:flex;flex:1;overflow:hidden;}
   .sidebar{
     width:220px;border-right:1px solid var(--border);padding:24px 16px;
@@ -245,7 +245,7 @@
   .badge-screening{background:var(--blue-dim);color:var(--blue);}
   .badge::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor;}
 
-  /* â”€â”€â”€â”€ JOB CREATE â”€â”€â”€â”€ */
+  /* ──── JOB CREATE ──── */
   .form-layout{max-width:760px;}
   .form-section{
     border:1px solid var(--border);border-radius:12px;padding:28px;
@@ -259,7 +259,7 @@
   label{font-size:12px;font-weight:600;color:var(--text-muted);letter-spacing:0.3px;font-family:'DM Mono',monospace;}
   input,select,textarea{
     background:var(--bg);border:1px solid var(--border2);border-radius:8px;
-    padding:10px 14px;font-size:13px;color:var(--text);font-family:'Syne',sans-serif;
+    padding:10px 14px;font-size:13px;color:var(--text);font-family:'Roboto',sans-serif;
     transition:all 0.2s;outline:none;width:100%;
   }
   input:focus,select:focus,textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-glow);}
@@ -283,7 +283,7 @@
   input[type=range]{padding:0;height:auto;background:transparent;border:none;box-shadow:none;}
   input[type=range]:focus{box-shadow:none;border:none;}
 
-  /* â”€â”€â”€â”€ CANDIDATES / SCREENING â”€â”€â”€â”€ */
+  /* ──── CANDIDATES / SCREENING ──── */
   .candidates-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;}
   .candidate-card{
     border:1px solid var(--border);border-radius:12px;background:var(--surface);
@@ -313,7 +313,7 @@
   }
   .candidate-card.selected .cand-select-check{background:var(--primary);border-color:var(--primary);color:#ffffff;}
 
-  /* â”€â”€â”€â”€ SHORTLIST RESULTS â”€â”€â”€â”€ */
+  /* ──── SHORTLIST RESULTS ──── */
   .shortlist-header{
     background:linear-gradient(135deg,var(--surface2),var(--surface));
     border:1px solid var(--border);border-radius:14px;padding:32px;
@@ -364,7 +364,7 @@
   .score-dim-val{font-size:20px;font-weight:800;font-family:'DM Mono',monospace;color:var(--primary);}
   .score-dim-label{font-size:10px;color:var(--text-muted);margin-top:4px;text-transform:uppercase;letter-spacing:0.5px;}
 
-  /* â”€â”€â”€â”€ UPLOAD / EXTERNAL â”€â”€â”€â”€ */
+  /* ──── UPLOAD / EXTERNAL ──── */
   .upload-zone{
     border:2px dashed var(--border2);border-radius:14px;padding:48px;
     text-align:center;cursor:pointer;transition:all 0.3s;background:var(--surface);
@@ -383,7 +383,7 @@
   .file-size{font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;}
   .file-status{font-size:11px;color:var(--green);font-weight:600;display:flex;align-items:center;gap:4px;}
 
-  /* â”€â”€â”€â”€ AI SCREENING MODAL â”€â”€â”€â”€ */
+  /* ──── AI SCREENING MODAL ──── */
   .modal-overlay{
     position:fixed;inset:0;background:rgba(15,23,42,0.6);backdrop-filter:blur(8px);
     z-index:1000;display:flex;align-items:center;justify-content:center;
@@ -411,7 +411,7 @@
   .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border2);border-top-color:var(--primary);border-radius:50%;animation:spin 0.8s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
 
-  /* â”€â”€â”€â”€ PROFILE VIEW â”€â”€â”€â”€ */
+  /* ──── PROFILE VIEW ──── */
   .profile-layout{display:grid;grid-template-columns:280px 1fr;gap:24px;}
   .profile-sidebar-card{
     border:1px solid var(--border);border-radius:14px;background:var(--surface);
@@ -439,7 +439,7 @@
   .skill-track{height:4px;background:var(--border2);border-radius:2px;overflow:hidden;}
   .skill-fill{height:100%;background:var(--primary);border-radius:2px;}
 
-  /* â”€â”€â”€â”€ TOAST â”€â”€â”€â”€ */
+  /* ──── TOAST ──── */
   .toast{
     position:fixed;bottom:28px;right:28px;z-index:9999;
     background:var(--surface2);border:1px solid var(--border2);border-radius:10px;
@@ -453,7 +453,7 @@
   .toast.success{border-left:3px solid var(--green);}
   .toast.info{border-left:3px solid var(--primary);}
 
-  /* â”€â”€â”€â”€ SETTINGS â”€â”€â”€â”€ */
+  /* ──── SETTINGS ──── */
   .settings-grid{display:grid;grid-template-columns:240px 1fr;gap:24px;}
   .settings-nav{border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:12px;height:fit-content;}
   .settings-nav-item{padding:10px 14px;border-radius:8px;font-size:13px;cursor:pointer;color:var(--text-muted);transition:all 0.2s;display:flex;align-items:center;gap:8px;}
@@ -472,7 +472,7 @@
   .toggle::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform 0.2s;}
   .toggle.on::after{transform:translateX(20px);}
 
-  /* â”€â”€â”€â”€ RESPONSIVE â”€â”€â”€â”€ */
+  /* ──── RESPONSIVE ──── */
   @media(max-width:900px){
     .features-grid,.stats-row{grid-template-columns:repeat(2,1fr);}
     .candidates-grid{grid-template-columns:1fr;}
