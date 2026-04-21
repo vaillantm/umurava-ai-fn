@@ -1938,7 +1938,7 @@ nav {
   top: 0;
   right: 0;
   bottom: 0;
-  width: 520px;
+  width: min(760px, calc(100vw - 24px));
   max-width: 100%;
   background: var(--surface);
   border-left: 1px solid var(--border);
@@ -1972,7 +1972,7 @@ nav {
 .job-panel-body {
   flex: 1;
   overflow-y: auto;
-  padding: 28px;
+  padding: 24px 28px;
 }
 
 .job-panel-footer {
@@ -2042,6 +2042,40 @@ nav {
   border: 1px solid var(--border2);
   border-radius: 10px;
   background: var(--bg);
+}
+
+.job-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.job-form-grid .form-group {
+  margin-bottom: 0;
+}
+
+.auth-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.weights-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  background: var(--surface2);
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.weight-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 4px;
 }
 
 /* Dashboard redesign */
@@ -2147,12 +2181,57 @@ nav {
   min-width: 0;
 }
 
+.dash-card-wide {
+  flex: 2 1 0;
+}
+
+.dash-card-side {
+  flex: 1 1 320px;
+}
+
 .dash-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 18px 20px;
   border-bottom: 1px solid var(--border);
+}
+
+.dash-card-body {
+  padding: 16px 20px;
+}
+
+.dash-card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dash-pie-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dash-pie-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.dash-pie-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+}
+
+.dash-pie-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
 }
 
 .dash-card-title {
@@ -2271,6 +2350,102 @@ nav {
   font-family: 'DM Mono', monospace;
 }
 
+.dash-empty-state {
+  padding: 16px 20px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.shortlist-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.shortlist-metric {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.shortlist-metric-label {
+  font-size: 11px;
+  font-family: 'DM Mono', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.shortlist-metric-value {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.shortlist-accent {
+  color: var(--primary);
+}
+
+.shortlist-green {
+  color: var(--green);
+}
+
+.shortlist-warn {
+  color: #d97706;
+}
+
+.shortlist-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  color: #92400e;
+}
+
+.shortlist-banner p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.shortlist-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.shortlist-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.shortlist-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2);
+}
+
+.shortlist-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 /* Profile edit input */
 .profile-edit-input {
   width: 100%;
@@ -2382,6 +2557,16 @@ nav {
   .dash-charts-row > .dash-card,
   .dash-tables-row > .dash-card {
     flex: 1 1 100% !important;
+  }
+
+  .shortlist-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .auth-grid-2,
+  .job-form-grid,
+  .weights-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -2601,6 +2786,10 @@ nav {
     flex-direction: column;
   }
 
+  .dash-card-body {
+    padding: 14px 16px;
+  }
+
   .dash-table {
     min-width: 680px;
   }
@@ -2615,6 +2804,24 @@ nav {
 
   .main-content {
     padding: 16px;
+  }
+
+  .shortlist-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .shortlist-toolbar {
+    align-items: stretch;
+  }
+
+  .shortlist-controls {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .shortlist-controls select,
+  .shortlist-controls .btn {
+    width: 100%;
   }
 }
 

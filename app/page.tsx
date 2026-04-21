@@ -54,10 +54,8 @@ const orbitCompanies = [
 const slidingFeatures = [...features, ...features];
 
 export default function HomePage() {
-  const [darkMode, setDarkMode] = useState(false);
-
   return (
-    <div className={`page home-page ${darkMode ? 'home-page-dark' : ''}`}>
+    <div className="page home-page">
       <nav className="home-nav">
         <Link className="nav-logo" href="/">
           <div className="nav-logo-mark">
@@ -74,15 +72,6 @@ export default function HomePage() {
           </a>
         </div>
         <div className="nav-actions home-nav-tools">
-          <button
-            className="theme-toggle"
-            type="button"
-            onClick={() => setDarkMode((value) => !value)}
-            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            <span className="material-symbols-outlined">{darkMode ? 'light_mode' : 'dark_mode'}</span>
-            {darkMode ? 'Light' : 'Dark'}
-          </button>
           <Link className="btn btn-primary home-nav-cta" href="/login">
             Recruiter Login <span className="material-symbols-outlined" style={{ fontSize: 18 }}>login</span>
           </Link>

@@ -1,23 +1,35 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
+import { runScreening, listCandidates, listJobs, type CandidateRecord, type ScreeningResult } from '@/lib/backend';
 import { showToast } from '@/lib/toast';
-import { umuravaStore, type CandidateProfile } from '@/lib/umurava-store';
 
-const steps = ['Parse & normalize resumes', 'Extract structured profile data', 'Run Gemini AI scoring', 'Rank & create shortlist', 'Generate explanations'];
+const steps = ['Parse and normalize resumes', 'Extract structured profile data', 'Run AI scoring', 'Rank and create shortlist', 'Generate explanations'];
 
 export default function CandidatesPage() {
-  const [candidates, setCandidates] = useState<CandidateProfile[]>([]);
-  const [selected, setSelected] = useState<Set<string | number>>(new Set());
+  const router = useRouter();
+  const [candidates, setCandidates] = useState<CandidateRecord[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [screeningOpen, setScreeningOpen] = useState(false);
   const [stepIndex, setStepIndex] = useState(-1);
   const [complete, setComplete] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [screeningResults, setScreeningResults] = useState<ScreeningResult[]>([]);
+  const [activeJobId, setActiveJobId] = useState<string>('');
 
   useEffect(() => {
-    setCandidates([...umuravaStore.getCandidates()]);
+    let alive = true;
+    Promise.all([listCandidates(), listJobs()]).then(([candidateItems, jobItems]) => {
+      if (!alive) return;
+      setCandidates(candidateItems);
+      setActiveJobId(jobItems[0]?.id || '');
+    });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -25,7 +37,6 @@ export default function CandidatesPage() {
     setStepIndex(-1);
     setComplete(false);
     setProgress(0);
-    umuravaStore.runScreening(undefined, { shortlistSize: umuravaStore.getCurrentShortlistSize() });
 
     const delays = [400, 1000, 2000, 3200, 4400];
     const durations = [500, 700, 900, 700, 500];
@@ -48,19 +59,26 @@ export default function CandidatesPage() {
       );
     });
 
+    runScreening({
+      jobId: activeJobId || 'active-job',
+      candidateIds: candidates.map((candidate) => String(candidate.id || '')),
+      shortlistSize: 20
+    }).then((result) => setScreeningResults(result.results || []));
+
     return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [screeningOpen]);
+  }, [screeningOpen, candidates, activeJobId]);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     return candidates.filter((candidate) => {
       if (!query) return true;
       const fullName = `${candidate.personalInfo.firstName} ${candidate.personalInfo.lastName}`.toLowerCase();
-      return fullName.includes(query) || candidate.personalInfo.headline.toLowerCase().includes(query) || candidate.skills.some((skill) => skill.name.toLowerCase().includes(query));
+      const skills = candidate.skills || [];
+      return fullName.includes(query) || candidate.personalInfo.headline.toLowerCase().includes(query) || skills.some((skill) => skill.name.toLowerCase().includes(query));
     });
   }, [candidates, search]);
 
-  const toggleCandidate = (id: string | number) => {
+  const toggleCandidate = (id: string) => {
     setSelected((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
@@ -70,7 +88,7 @@ export default function CandidatesPage() {
   };
 
   const toggleSelectAll = () => {
-    setSelected((current) => (current.size === candidates.length ? new Set() : new Set(candidates.map((candidate) => candidate.id))));
+    setSelected((current) => (current.size === candidates.length ? new Set() : new Set(candidates.map((candidate) => String(candidate.id)))));
   };
 
   return (
@@ -78,7 +96,7 @@ export default function CandidatesPage() {
       activeSidebar="candidates"
       navLinks={<div className="nav-link active">Candidates Data</div>}
       actions={
-        <button className="btn btn-primary btn-sm" onClick={() => setScreeningOpen(true)}>
+        <button className="btn btn-primary btn-sm" onClick={() => setScreeningOpen(true)} type="button">
           <span className="material-symbols-outlined">smart_toy</span> Run AI Screening
         </button>
       }
@@ -87,15 +105,15 @@ export default function CandidatesPage() {
         <div className="page-title">
           Candidate Data Pool <span>{candidates.length ? `${candidates.length} candidates` : 'Loading...'}</span>
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <input
             type="text"
-            placeholder="Search data pool…"
+            placeholder="Search data pool..."
             style={{ width: 220, padding: '8px 14px', fontSize: 13 }}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
-          <button className="btn btn-ghost btn-sm" onClick={toggleSelectAll}>
+          <button className="btn btn-ghost btn-sm" onClick={toggleSelectAll} type="button">
             Select All
           </button>
         </div>
@@ -108,15 +126,15 @@ export default function CandidatesPage() {
       <div className="candidates-grid">
         {filtered.map((candidate) => {
           const initials = `${candidate.personalInfo.firstName?.[0] || ''}${candidate.personalInfo.lastName?.[0] || ''}`.toUpperCase();
-          const years = candidate.experience.reduce((sum, entry) => {
+          const years = (candidate.experience || []).reduce((sum, entry) => {
             const start = new Date(entry.startDate);
-            const end = entry.endDate === 'Present' ? new Date() : new Date(entry.endDate);
+            const end = entry.endDate === 'Present' ? new Date() : new Date(entry.endDate || entry.startDate);
             if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return sum;
             return sum + (Number(end) - Number(start)) / (1000 * 60 * 60 * 24 * 365.25);
           }, 0);
 
           return (
-            <div key={candidate.id} className={`candidate-card ${selected.has(candidate.id) ? 'selected' : ''}`} onClick={() => toggleCandidate(candidate.id)}>
+            <div key={String(candidate.id)} className={`candidate-card ${selected.has(String(candidate.id)) ? 'selected' : ''}`} onClick={() => toggleCandidate(String(candidate.id))}>
               <div className="cand-top">
                 <div className="cand-avatar">{initials}</div>
                 <div style={{ flex: 1 }}>
@@ -132,7 +150,7 @@ export default function CandidatesPage() {
                 </div>
               </div>
               <div className="cand-skills">
-                {candidate.skills.slice(0, 5).map((skill) => (
+                {(candidate.skills || []).slice(0, 5).map((skill) => (
                   <span className="skill-pill" key={`${candidate.id}-${skill.name}`}>
                     {skill.name} ({skill.level})
                   </span>
@@ -164,7 +182,7 @@ export default function CandidatesPage() {
               <span className="material-symbols-outlined" style={{ fontSize: 24 }}>
                 smart_toy
               </span>{' '}
-              Gemini AI Screening
+              AI Screening
             </div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 24, lineHeight: 1.5 }}>
               Processing {candidates.length} candidates against the active job requirements...
@@ -193,10 +211,12 @@ export default function CandidatesPage() {
               <button
                 className="btn btn-primary"
                 onClick={() => {
-                  setScreeningOpen(false);
-                  showToast('AI screening complete. Shortlist is ready.', 'success');
-                }}
+                setScreeningOpen(false);
+                showToast(`AI screening complete. ${screeningResults.length} ranked results are ready.`, 'success');
+                router.push('/shortlist');
+              }}
                 style={{ display: complete ? 'inline-flex' : 'none' }}
+                type="button"
               >
                 <span className="material-symbols-outlined">done_all</span> View Shortlist Results
               </button>

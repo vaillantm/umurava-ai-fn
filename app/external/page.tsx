@@ -3,113 +3,62 @@
 import Link from 'next/link';
 import { ChangeEvent, DragEvent, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
+import { createCandidate, uploadCsv, uploadJson, uploadPdf, type CandidateRecord } from '@/lib/backend';
 import { showToast } from '@/lib/toast';
-import { umuravaStore, type CandidateProfile } from '@/lib/umurava-store';
 
 type Mode = 'upload' | 'csv' | 'pdf' | 'manual';
 
 export default function ExternalPage() {
   const [mode, setMode] = useState<Mode>('upload');
-  const [jsonCandidates, setJsonCandidates] = useState<CandidateProfile[]>([]);
-  const [csvCandidates, setCsvCandidates] = useState<CandidateProfile[]>([]);
+  const [jsonCandidates, setJsonCandidates] = useState<CandidateRecord[]>([]);
+  const [csvCandidates, setCsvCandidates] = useState<CandidateRecord[]>([]);
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
   const [manualCount, setManualCount] = useState(0);
 
-  const importCandidates = (items: CandidateProfile[]) => {
-    items.forEach((candidate) => umuravaStore.addCandidate(candidate));
+  const importCandidates = async (items: CandidateRecord[]) => {
     showToast(`${items.length} candidates added to pool!`, 'success');
     window.location.assign('/candidates');
   };
 
-  const readJSON = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const parsed = JSON.parse(String(event.target?.result || '[]'));
-        const list = Array.isArray(parsed) ? parsed : [parsed];
-        setJsonCandidates(list as CandidateProfile[]);
-      } catch {
-        showToast('Invalid JSON file. Please check the format.', 'info');
-      }
-    };
-    reader.readAsText(file);
+  const readJSON = async (file: File) => {
+    try {
+      const imported = await uploadJson(file);
+      setJsonCandidates(imported);
+    } catch {
+      showToast('Invalid JSON file. Please check the format.', 'info');
+    }
   };
 
-  const readCSV = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const lines = String(event.target?.result || '').trim().split('\n').filter(Boolean);
-      const headers = lines[0]?.split(',').map((item) => item.trim().replace(/"/g, '')) || [];
-      const items: CandidateProfile[] = [];
-      lines.slice(1).forEach((line, index) => {
-        const values = line.split(',').map((item) => item.trim().replace(/"/g, ''));
-        const row: Record<string, string> = {};
-        headers.forEach((header, headerIndex) => {
-          row[header] = values[headerIndex] || '';
-        });
-        if (!row.firstName || !row.lastName || !row.email) return;
-        items.push({
-          id: Date.now() + index,
-          personalInfo: {
-            firstName: row.firstName,
-            lastName: row.lastName,
-            email: row.email,
-            headline: row.headline || 'Candidate',
-            location: row.location || 'Unknown',
-            bio: ''
-          },
-          skills: row.skills ? row.skills.split(';').map((skill) => ({ name: skill.trim(), level: 'Intermediate', yearsOfExperience: Number(row.yearsExperience) || 1 })) : [],
-          languages: [],
-          experience: row.company ? [{ company: row.company, role: row.role || 'Professional', startDate: '2020-01', endDate: 'Present', description: '', technologies: [], isCurrent: true }] : [],
-          education: row.degree ? [{ institution: 'University', degree: row.degree, fieldOfStudy: 'General', startYear: 2016, endYear: 2020 }] : [],
-          certifications: [],
-          projects: [],
-          availability: { status: row.availability || 'Available', type: 'Full-time' },
-          socialLinks: {}
-        });
-      });
-      setCsvCandidates(items);
-    };
-    reader.readAsText(file);
+  const readCSV = async (file: File) => {
+    try {
+      const imported = await uploadCsv(file);
+      setCsvCandidates(imported);
+    } catch {
+      showToast('Could not parse the CSV file.', 'info');
+    }
   };
 
   const addPdfFiles = (files: File[]) => setPdfFiles((current) => [...current, ...files]);
 
-  const parsePDFs = () => {
-    const imports: CandidateProfile[] = [];
-    pdfFiles.forEach((file, index) => {
-      if (file.size < 5000) return;
-      imports.push({
-        id: Date.now() + index,
-        personalInfo: {
-          firstName: file.name.split('.')[0].split('_')[0] || 'Candidate',
-          lastName: file.name.split('_')[1] || String(index + 1),
-          email: `candidate${index + 1}@parsed.ai`,
-          headline: 'Parsed from PDF Resume',
-          location: 'Kigali, Rwanda',
-          bio: 'Extracted via Gemini AI OCR parsing.'
-        },
-        skills: [{ name: 'Node.js', level: 'Intermediate', yearsOfExperience: 2 }],
-        languages: [],
-        experience: [{ company: 'Previous Company', role: 'Professional', startDate: '2021-01', endDate: 'Present', description: 'Extracted from PDF.', technologies: [], isCurrent: true }],
-        education: [{ institution: 'University', degree: "Bachelor's", fieldOfStudy: 'Computer Science', startYear: 2017, endYear: 2021 }],
-        certifications: [],
-        projects: [],
-        availability: { status: 'Available', type: 'Full-time' },
-        socialLinks: {}
-      });
-    });
-    imports.forEach((candidate) => umuravaStore.addCandidate(candidate));
+  const parsePDFs = async () => {
+    const imports: CandidateRecord[] = [];
+    for (const file of pdfFiles) {
+      const parsed = await uploadPdf(file);
+      imports.push(...parsed);
+    }
+    setPdfFiles([]);
+    setJsonCandidates([]);
+    setCsvCandidates([]);
+    await importCandidates(imports);
     showToast(`${imports.length} PDF${imports.length !== 1 ? 's' : ''} parsed and added to pool!`, 'success');
-    window.location.assign('/candidates');
   };
 
   const onDrop = (event: DragEvent<HTMLDivElement>, kind: 'json' | 'csv' | 'pdf') => {
     event.preventDefault();
     const file = event.dataTransfer.files[0];
     if (!file) return;
-    if (kind === 'json') readJSON(file);
-    if (kind === 'csv') readCSV(file);
+    if (kind === 'json') void readJSON(file);
+    if (kind === 'csv') void readCSV(file);
     if (kind === 'pdf' && file.type === 'application/pdf') addPdfFiles([file]);
   };
 
@@ -124,7 +73,7 @@ export default function ExternalPage() {
           Bulk CV Upload <span>Add candidates to screening pool</span>
         </div>
         <Link className="btn btn-ghost btn-sm" href="/candidates">
-          View Pool →
+          View Pool
         </Link>
       </div>
 
@@ -147,13 +96,13 @@ export default function ExternalPage() {
       {mode === 'upload' ? (
         <div className="mode-panel active">
           <div className="upload-zone" onDrop={(event) => onDrop(event, 'json')} onDragOver={(event) => event.preventDefault()}>
-            <input id="json-file-input" type="file" accept=".json" onChange={(event: ChangeEvent<HTMLInputElement>) => event.target.files?.[0] && readJSON(event.target.files[0])} style={{ display: 'none' }} />
+            <input id="json-file-input" type="file" accept=".json" onChange={(event: ChangeEvent<HTMLInputElement>) => event.target.files?.[0] && void readJSON(event.target.files[0])} style={{ display: 'none' }} />
             <span className="material-symbols-outlined" style={{ fontSize: 48, color: 'var(--primary)', display: 'block', marginBottom: 16 }}>
               cloud_upload
             </span>
             <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Drop your JSON file here</div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
-              or click to browse - accepts <code style={{ background: 'var(--surface2)', padding: '2px 6px', borderRadius: 4 }}>.json</code> files with candidate array
+              or click to browse - accepts <code style={{ background: 'var(--surface2)', padding: '2px 6px', borderRadius: 4 }}>.json</code> files with candidate arrays
             </div>
             <button className="btn btn-primary btn-sm" type="button" onClick={() => document.getElementById('json-file-input')?.click()}>
               <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
@@ -171,7 +120,7 @@ export default function ExternalPage() {
                 <div style={{ fontSize: 14, fontWeight: 700 }}>{jsonCandidates.length} candidate file loaded</div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{jsonCandidates.length} candidates parsed</div>
               </div>
-              <button className="btn btn-primary btn-sm" type="button" onClick={() => importCandidates(jsonCandidates)}>
+              <button className="btn btn-primary btn-sm" type="button" onClick={() => void importCandidates(jsonCandidates)}>
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
                   add_circle
                 </span>{' '}
@@ -185,7 +134,7 @@ export default function ExternalPage() {
       {mode === 'csv' ? (
         <div className="mode-panel active">
           <div className="upload-zone" onDrop={(event) => onDrop(event, 'csv')} onDragOver={(event) => event.preventDefault()}>
-            <input id="csv-file-input" type="file" accept=".csv" onChange={(event: ChangeEvent<HTMLInputElement>) => event.target.files?.[0] && readCSV(event.target.files[0])} style={{ display: 'none' }} />
+            <input id="csv-file-input" type="file" accept=".csv" onChange={(event: ChangeEvent<HTMLInputElement>) => event.target.files?.[0] && void readCSV(event.target.files[0])} style={{ display: 'none' }} />
             <span className="material-symbols-outlined" style={{ fontSize: 48, color: 'var(--primary)', display: 'block', marginBottom: 16 }}>
               table_chart
             </span>
@@ -209,7 +158,7 @@ export default function ExternalPage() {
                 <div style={{ fontSize: 14, fontWeight: 700 }}>{csvCandidates.length} valid rows parsed</div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Ready to import</div>
               </div>
-              <button className="btn btn-primary btn-sm" type="button" onClick={() => importCandidates(csvCandidates)}>
+              <button className="btn btn-primary btn-sm" type="button" onClick={() => void importCandidates(csvCandidates)}>
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
                   add_circle
                 </span>{' '}
@@ -228,7 +177,7 @@ export default function ExternalPage() {
               picture_as_pdf
             </span>
             <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Drop PDF resumes here</div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>Upload multiple .pdf files - Gemini AI will parse each resume with OCR</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>Upload multiple .pdf files - the backend upload endpoint will parse each resume.</div>
             <button className="btn btn-primary btn-sm" type="button" onClick={() => document.getElementById('pdf-file-input')?.click()}>
               <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
                 folder_open
@@ -244,18 +193,18 @@ export default function ExternalPage() {
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13.5, fontWeight: 600 }}>{file.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'DM Mono, monospace' }}>{(file.size / 1024).toFixed(0)} KB · waiting</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'DM Mono, monospace' }}>{(file.size / 1024).toFixed(0)} KB - waiting</div>
                 </div>
               </div>
             ))}
           </div>
           {pdfFiles.length ? (
             <div style={{ marginTop: 16 }}>
-              <button className="btn btn-primary" type="button" onClick={parsePDFs}>
+              <button className="btn btn-primary" type="button" onClick={() => void parsePDFs()}>
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
                   smart_toy
                 </span>{' '}
-                Parse with Gemini AI & Add to Pool
+                Parse with AI & Add to Pool
               </button>
             </div>
           ) : null}
@@ -266,14 +215,15 @@ export default function ExternalPage() {
         <div className="mode-panel active">
           <div className="form-section">
             <div className="form-section-title">Manual Entry</div>
-            <p className="settings-desc">Quick mock entry to add a blank profile. The full multi-step form from the static version can be restored if needed.</p>
+            <p className="settings-desc">Quick mock entry to add a blank profile.</p>
             <button
               className="btn btn-primary"
               type="button"
               onClick={() => {
                 setManualCount((count) => count + 1);
-                umuravaStore.addCandidate({
+                void createCandidate({
                   id: `manual-${Date.now()}`,
+                  source: 'manual',
                   personalInfo: {
                     firstName: 'Manual',
                     lastName: `Candidate ${manualCount + 1}`,
@@ -290,9 +240,10 @@ export default function ExternalPage() {
                   projects: [],
                   availability: { status: 'Available', type: 'Full-time' },
                   socialLinks: {}
+                } as CandidateRecord).then(() => {
+                  showToast('Profile added successfully!', 'success');
+                  window.location.assign('/candidates');
                 });
-                showToast('Profile added successfully!', 'success');
-                window.location.assign('/candidates');
               }}
             >
               Add Placeholder Candidate

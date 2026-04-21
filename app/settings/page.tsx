@@ -1,14 +1,41 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
+import { getSettings, updateSettings, type AuthUser } from '@/lib/backend';
 import { showToast } from '@/lib/toast';
 
+type SettingsState = NonNullable<AuthUser['settings']>;
+
+const DEFAULT_SETTINGS: SettingsState = {
+  primaryModel: 'gemini-2.5-pro',
+  batchOutput: true,
+  explainableStructuring: true,
+  biasDetection: true,
+  promptContext: ''
+};
+
 export default function SettingsPage() {
-  const [batchOutput, setBatchOutput] = useState(true);
-  const [explainable, setExplainable] = useState(true);
-  const [biasDetection, setBiasDetection] = useState(false);
+  const [settings, setSettings] = useState<SettingsState>(DEFAULT_SETTINGS);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    getSettings().then((loaded) => setSettings({ ...DEFAULT_SETTINGS, ...loaded }));
+  }, []);
+
+  async function handleSave() {
+    setBusy(true);
+    try {
+      const saved = await updateSettings(settings);
+      setSettings({ ...DEFAULT_SETTINGS, ...saved });
+      showToast('AI settings saved.', 'success');
+    } catch {
+      showToast('Could not save settings.', 'info');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <AppShell
@@ -27,36 +54,29 @@ export default function SettingsPage() {
         <div className="settings-section">
           <div className="settings-label">Primary AI Model</div>
           <div className="settings-desc">Select the Gemini model used for parsing resumes and generating structured explanations.</div>
-          <select style={{ width: '100%', maxWidth: 320 }}>
-            <option>gemini-1.5-pro (Recommended)</option>
-            <option>gemini-1.5-flash</option>
-            <option>gemini-2.0-flash</option>
+          <select style={{ width: '100%', maxWidth: 320 }} value={settings.primaryModel} onChange={(event) => setSettings((current) => ({ ...current, primaryModel: event.target.value }))}>
+            <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+            <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+            <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+            <option value="gemini-2.0-flash">gemini-2.0-flash</option>
           </select>
         </div>
         <div className="settings-section">
           <div className="settings-label">AI Pipeline Toggles</div>
           <div className="settings-desc">Control how the screening engine operates across multiple candidates.</div>
-          <div className="toggle-wrap">
-            <div className="toggle-info">
-              <div className="label">Multi-candidate Batch Output</div>
-              <div className="desc">Force AI to evaluate and rank all candidates into a single JSON response</div>
+          {[
+            ['batchOutput', 'Multi-candidate Batch Output', 'Force AI to evaluate and rank all candidates into a single JSON response'],
+            ['explainableStructuring', 'Explainable Structuring', 'Require strengths, gaps, and relevance notes for every scored candidate'],
+            ['biasDetection', 'Bias Detection Filter', 'Flag potentially biased demographic screening patterns for human review']
+          ].map(([key, label, desc]) => (
+            <div className="toggle-wrap" key={String(key)}>
+              <div className="toggle-info">
+                <div className="label">{label}</div>
+                <div className="desc">{desc}</div>
+              </div>
+              <div className={`toggle ${settings[key as keyof SettingsState] ? 'on' : ''}`} onClick={() => setSettings((current) => ({ ...current, [key]: !current[key as keyof SettingsState] }))} />
             </div>
-            <div className={`toggle ${batchOutput ? 'on' : ''}`} onClick={() => setBatchOutput((value) => !value)} />
-          </div>
-          <div className="toggle-wrap">
-            <div className="toggle-info">
-              <div className="label">Explainable Structuring</div>
-              <div className="desc">Require strengths, gaps, and relevance notes for every scored candidate</div>
-            </div>
-            <div className={`toggle ${explainable ? 'on' : ''}`} onClick={() => setExplainable((value) => !value)} />
-          </div>
-          <div className="toggle-wrap">
-            <div className="toggle-info">
-              <div className="label">Bias Detection Filter</div>
-              <div className="desc">Flag potentially biased demographic screening patterns for human review</div>
-            </div>
-            <div className={`toggle ${biasDetection ? 'on' : ''}`} onClick={() => setBiasDetection((value) => !value)} />
-          </div>
+          ))}
         </div>
         <div className="settings-section">
           <div className="settings-label">Prompt Engineering Context</div>
@@ -67,16 +87,11 @@ export default function SettingsPage() {
           <textarea
             rows={5}
             style={{ fontFamily: 'DM Mono, monospace', fontSize: 12, lineHeight: 1.7 }}
-            defaultValue={`You are an expert HR AI assistant evaluating multiple candidates. Given this job description:
-{{job}}
-
-Evaluate the following extracted candidate data:
-{{candidates}}
-
-Return a ranked JSON array strictly adhering to this schema: {id, score (0-100), strengths[], gaps[], reasoning}.`}
+            value={settings.promptContext}
+            onChange={(event) => setSettings((current) => ({ ...current, promptContext: event.target.value }))}
           />
-          <button className="btn btn-primary btn-sm" style={{ marginTop: 12 }} onClick={() => showToast('AI Prompts saved!', 'success')}>
-            Save Configuration
+          <button className="btn btn-primary btn-sm" style={{ marginTop: 12 }} onClick={handleSave} disabled={busy}>
+            {busy ? 'Saving...' : 'Save Configuration'}
           </button>
         </div>
       </div>
