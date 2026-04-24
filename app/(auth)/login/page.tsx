@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { login, register, requestPasswordReset } from '@/lib/backend';
+import { login, register, requestPasswordReset } from '@/lib/auth';
 import { showToast } from '@/lib/toast';
 
 type Screen = 'login' | 'signup' | 'forgot' | 'forgot-success';

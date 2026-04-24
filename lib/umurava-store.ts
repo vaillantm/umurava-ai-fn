@@ -543,7 +543,18 @@ function loadState(): StoreState {
   }
 }
 
-const state: StoreState = loadState();
+let _state: StoreState | null = null;
+
+function getOrInitState(): StoreState {
+  if (!_state) _state = loadState();
+  return _state;
+}
+
+// proxy so existing `state.x` references still work
+const state = new Proxy({} as StoreState, {
+  get(_t, key) { return (getOrInitState() as any)[key]; },
+  set(_t, key, value) { (getOrInitState() as any)[key] = value; return true; }
+});
 
 function persist() {
   state.updatedAt = new Date().toISOString();
@@ -817,7 +828,4 @@ export const umuravaStore = {
 
 if (isBrowser()) {
   (window as Window & { UmuravaStore?: typeof umuravaStore }).UmuravaStore = umuravaStore;
-  if (!window.localStorage.getItem(STORAGE_KEY)) {
-    persist();
-  }
 }

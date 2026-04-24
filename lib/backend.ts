@@ -102,6 +102,7 @@ export interface JobRecord {
     projects: number;
     certifications: number;
   };
+  shortlistedCandidates?: Array<string | { id?: string; _id?: string }>;
   status?: 'draft' | 'active' | 'closed';
   createdBy?: string;
   createdAt?: string;
@@ -174,7 +175,15 @@ function removeStorage(key: string) {
 }
 
 function getStoredToken() {
-  return isBrowser() ? window.localStorage.getItem(TOKEN_KEY) || undefined : undefined;
+  if (!isBrowser()) return undefined;
+  const raw = window.localStorage.getItem(TOKEN_KEY);
+  if (!raw) return undefined;
+  // handle legacy JSON-quoted tokens
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === 'string') return parsed;
+  } catch {}
+  return raw;
 }
 
 function getStoredUser() {
@@ -182,7 +191,7 @@ function getStoredUser() {
 }
 
 function setSession(token: string, user: AuthUser) {
-  writeJsonStorage(TOKEN_KEY, token);
+  if (isBrowser()) window.localStorage.setItem(TOKEN_KEY, token);
   writeJsonStorage(USER_KEY, user);
 }
 
@@ -222,40 +231,244 @@ function storeState() {
   return umuravaStore.getState();
 }
 
+type IdLike = { id?: string | number; _id?: string | number };
+
+function normalizeId(value: IdLike | string | number | null | undefined) {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  return String(value.id ?? value._id ?? '');
+}
+
+function normalizeJobRecord(job: any): JobRecord {
+  const cloned = clone(job || {});
+  return {
+    ...cloned,
+    id: normalizeId(cloned) || cloned.id,
+    title: cloned.title || '',
+    company: cloned.company || '',
+    department: cloned.department || '',
+    location: cloned.location || '',
+    salary: typeof cloned.salary === 'number' ? cloned.salary : cloned.salary ? Number(cloned.salary) : undefined,
+    jobType: cloned.jobType,
+    employmentType: cloned.employmentType || '',
+    experienceLevel: cloned.experienceLevel || '',
+    shortlistSize: typeof cloned.shortlistSize === 'number' ? cloned.shortlistSize : Number(cloned.shortlistSize || 0),
+    description: cloned.description || '',
+    requiredSkills: Array.isArray(cloned.requiredSkills) ? cloned.requiredSkills : [],
+    idealCandidateProfile: cloned.idealCandidateProfile || '',
+    aiWeights: {
+      skills: Number(cloned.aiWeights?.skills ?? 0),
+      experience: Number(cloned.aiWeights?.experience ?? 0),
+      education: Number(cloned.aiWeights?.education ?? 0),
+      projects: Number(cloned.aiWeights?.projects ?? 0),
+      certifications: Number(cloned.aiWeights?.certifications ?? 0)
+    },
+    shortlistedCandidates: Array.isArray(cloned.shortlistedCandidates) ? cloned.shortlistedCandidates : [],
+    status: cloned.status || 'draft',
+    createdBy: cloned.createdBy,
+    createdAt: cloned.createdAt || new Date().toISOString(),
+    updatedAt: cloned.updatedAt || cloned.createdAt || new Date().toISOString()
+  };
+}
+
+function normalizeCandidateRecord(candidate: any): CandidateRecord {
+  const cloned = clone(candidate || {});
+  return {
+    ...cloned,
+    id: normalizeId(cloned) || cloned.id,
+    source: cloned.source || 'manual',
+    sourceFileName: cloned.sourceFileName,
+    avatar: cloned.avatar
+      ? {
+          url: cloned.avatar.url || '',
+          publicId: cloned.avatar.publicId
+        }
+      : undefined,
+    personalInfo: {
+      firstName: cloned.personalInfo?.firstName || cloned.firstName || '',
+      lastName: cloned.personalInfo?.lastName || cloned.lastName || '',
+      email: cloned.personalInfo?.email || cloned.email || '',
+      headline: cloned.personalInfo?.headline || cloned.headline || '',
+      bio: cloned.personalInfo?.bio ?? cloned.bio ?? '',
+      location: cloned.personalInfo?.location || cloned.location || ''
+    },
+    skills: Array.isArray(cloned.skills) ? cloned.skills : [],
+    languages: Array.isArray(cloned.languages) ? cloned.languages : [],
+    experience: Array.isArray(cloned.experience) ? cloned.experience : [],
+    education: Array.isArray(cloned.education) ? cloned.education : [],
+    certifications: Array.isArray(cloned.certifications) ? cloned.certifications : [],
+    projects: Array.isArray(cloned.projects) ? cloned.projects : [],
+    availability: cloned.availability || { status: 'Available', type: 'Full-time' },
+    socialLinks: cloned.socialLinks || {},
+    incompleteReason: cloned.incompleteReason,
+    reasoning: cloned.reasoning,
+    score: typeof cloned.score === 'number' ? cloned.score : undefined,
+    scoreBreakdown: cloned.scoreBreakdown,
+    strengths: Array.isArray(cloned.strengths) ? cloned.strengths : [],
+    gaps: Array.isArray(cloned.gaps) ? cloned.gaps : [],
+    workflowStatus: cloned.workflowStatus,
+    decision: cloned.decision,
+    rank: typeof cloned.rank === 'number' ? cloned.rank : undefined,
+    shortlistLabel: cloned.shortlistLabel,
+    createdAt: cloned.createdAt,
+    updatedAt: cloned.updatedAt
+  };
+}
+
+function normalizeScreeningRecord(screening: any): ScreeningRecord | null {
+  if (!screening) return null;
+  const cloned = clone(screening);
+  const results = Array.isArray(cloned.results)
+    ? cloned.results.map((result: any) => ({
+        candidateId: String(
+          result.candidateId ??
+            result.id ??
+            result._id ??
+            result.candidate?._id ??
+            result.candidate?.id ??
+            ''
+        ),
+        rank: Number(result.rank ?? 0),
+        score: Number(result.score ?? 0),
+        scoreBreakdown: {
+          skills: Number(result.scoreBreakdown?.skills ?? 0),
+          experience: Number(result.scoreBreakdown?.experience ?? 0),
+          education: Number(result.scoreBreakdown?.education ?? 0),
+          projects: Number(result.scoreBreakdown?.projects ?? 0),
+          certifications: Number(result.scoreBreakdown?.certifications ?? 0)
+        },
+        strengths: Array.isArray(result.strengths) ? result.strengths : [],
+        gaps: Array.isArray(result.gaps) ? result.gaps : [],
+        reasoning: result.reasoning || '',
+        decision: result.decision || 'review',
+        workflowStatus: result.workflowStatus,
+        shortlistLabel: result.shortlistLabel
+      }))
+    : [];
+  return {
+    id: normalizeId(cloned) || cloned.id,
+    jobId: String(cloned.jobId || ''),
+    results,
+    incompleteCandidates: Array.isArray(cloned.incompleteCandidates)
+      ? cloned.incompleteCandidates.map((item: any) => ({
+          candidateId: String(item.candidateId ?? item._id ?? item.id ?? ''),
+          reason: item.reason || 'Incomplete profile'
+        }))
+      : [],
+    summary: cloned.summary || `Screened ${cloned.totalCandidates || results.length} candidates.`,
+    totalCandidates: Number(cloned.totalCandidates ?? results.length),
+    shortlistedCount: Number(cloned.shortlistedCount ?? results.filter((item: ScreeningResult) => item.decision === 'shortlisted').length),
+    averageScore: Number(cloned.averageScore ?? 0),
+    generatedBy: cloned.generatedBy,
+    createdAt: cloned.createdAt,
+    updatedAt: cloned.updatedAt || cloned.createdAt,
+    incompleteCount: Number(cloned.incompleteCount ?? cloned.incompleteCandidates?.length ?? 0)
+  };
+}
+
+function normalizeDashboardSnapshot(snapshot: any) {
+  return {
+    jobs: Array.isArray(snapshot?.jobs) ? snapshot.jobs.map(normalizeJobRecord) : [],
+    candidates: Array.isArray(snapshot?.candidates) ? snapshot.candidates.map(normalizeCandidateRecord) : [],
+    latestScreening: normalizeScreeningRecord(snapshot?.latestScreening)
+  };
+}
+
+function normalizeMaybeArray<T>(value: unknown, mapper: (item: any) => T): T[] {
+  return Array.isArray(value) ? value.map(mapper) : [];
+}
+
 function toJobRecord(job: ReturnType<typeof storeState>['jobs'][number]): JobRecord {
-  return clone(job) as JobRecord;
+  return normalizeJobRecord(job);
 }
 
 function toCandidateRecord(candidate: ReturnType<typeof storeState>['candidates'][number]): CandidateRecord {
-  return clone(candidate) as CandidateRecord;
+  return normalizeCandidateRecord(candidate);
 }
 
 function toScreeningRecord(screening: ReturnType<typeof storeState>['screenings'][number] | null): ScreeningRecord | null {
-  if (!screening) return null;
+  return normalizeScreeningRecord(screening);
+}
+
+function toAuthUser(user: any): AuthUser {
+  const cloned = clone(user || {});
   return {
-    id: screening.id,
-    jobId: screening.jobId,
-    results: screening.results.map((result) => ({
-      candidateId: String((result as { id?: string | number }).id || ''),
-      rank: result.rank,
-      score: result.score,
-      scoreBreakdown: result.scoreBreakdown,
-      strengths: result.strengths,
-      gaps: result.gaps,
+    id: String(cloned.id || cloned._id || ''),
+    fullName: cloned.fullName || '',
+    email: cloned.email || '',
+    role: cloned.role || 'recruiter',
+    companyName: cloned.companyName,
+    avatarUrl: cloned.avatarUrl,
+    status: cloned.status,
+    settings: cloned.settings,
+    createdAt: cloned.createdAt,
+    updatedAt: cloned.updatedAt
+  };
+}
+
+function isSnapshotPayload(value: unknown): value is { jobs?: unknown[]; candidates?: unknown[]; latestScreening?: unknown } {
+  return Boolean(value && typeof value === 'object' && ('jobs' in (value as Record<string, unknown>) || 'latestScreening' in (value as Record<string, unknown>)));
+}
+
+function fallbackDashboardSnapshot() {
+  return {
+    jobs: storeState().jobs.map(toJobRecord),
+    candidates: storeState().candidates.map(toCandidateRecord),
+    latestScreening: toScreeningRecord(storeState().screenings[0] || null)
+  };
+}
+
+function normalizeApiArrayResponse<T>(data: unknown, mapper: (item: any) => T): T[] {
+  if (Array.isArray(data)) return data.map(mapper);
+  if (data && typeof data === 'object') {
+    const maybeList = (data as Record<string, unknown>).items || (data as Record<string, unknown>).data || (data as Record<string, unknown>).jobs || (data as Record<string, unknown>).candidates;
+    if (Array.isArray(maybeList)) return maybeList.map(mapper);
+  }
+  return [];
+}
+
+function normalizeApiObjectResponse<T>(data: unknown, mapper: (item: any) => T): T {
+  return mapper(data);
+}
+
+function normalizeScreeningRunResponse(data: any) {
+  return {
+    jobId: String(data?.jobId || ''),
+    totalCandidates: Number(data?.totalCandidates ?? 0),
+    shortlistedCount: Number(data?.shortlistedCount ?? 0),
+    averageScore: Number(data?.averageScore ?? 0),
+    usedFallback: Boolean(data?.usedFallback),
+    summary: data?.summary || '',
+    results: normalizeMaybeArray(data?.results, (result: any) => ({
+      candidateId: String(result.candidateId ?? result.id ?? result._id ?? ''),
+      rank: Number(result.rank ?? 0),
+      score: Number(result.score ?? 0),
+      scoreBreakdown: {
+        skills: Number(result.scoreBreakdown?.skills ?? 0),
+        experience: Number(result.scoreBreakdown?.experience ?? 0),
+        education: Number(result.scoreBreakdown?.education ?? 0),
+        projects: Number(result.scoreBreakdown?.projects ?? 0),
+        certifications: Number(result.scoreBreakdown?.certifications ?? 0)
+      },
+      strengths: Array.isArray(result.strengths) ? result.strengths : [],
+      gaps: Array.isArray(result.gaps) ? result.gaps : [],
       reasoning: result.reasoning || '',
-      decision: result.decision as ScreeningResult['decision']
+      decision: result.decision || 'review',
+      workflowStatus: result.workflowStatus,
+      shortlistLabel: result.shortlistLabel
     })),
-    incompleteCandidates: screening.incompleteCandidates.map((item) => ({
-      candidateId: String(item.candidateId),
-      reason: item.reason
-    })),
-    summary: `Screened ${screening.totalCandidates} candidates and shortlisted ${screening.shortlistedCount}.`,
-    totalCandidates: screening.totalCandidates,
-    shortlistedCount: screening.shortlistedCount,
-    averageScore: screening.averageScore,
-    generatedBy: screening.generatedBy,
-    createdAt: screening.createdAt,
-    updatedAt: screening.createdAt
+    incompleteCandidates: normalizeMaybeArray(data?.incompleteCandidates, (item: any) => ({
+      candidateId: String(item.candidateId ?? item.id ?? item._id ?? ''),
+      reason: item.reason || 'Incomplete profile'
+    }))
+  };
+}
+
+function normalizeAuthResponse(response: any): { message: string; token: string; user: AuthUser } {
+  return {
+    message: response?.message || '',
+    token: response?.token || '',
+    user: toAuthUser(response?.user)
   };
 }
 
@@ -352,8 +565,9 @@ export async function login(payload: { email: string; password: string }) {
       body: JSON.stringify(payload)
     },
   ).then((response) => {
-    setSession(response.token, response.user);
-    return response;
+    const normalized = normalizeAuthResponse(response);
+    setSession(normalized.token, normalized.user);
+    return normalized;
   });
 }
 
@@ -366,8 +580,9 @@ export async function register(payload: { fullName: string; email: string; passw
       body: JSON.stringify(payload)
     },
   ).then((response) => {
-    setSession(response.token, response.user);
-    return response;
+    const normalized = normalizeAuthResponse(response);
+    setSession(normalized.token, normalized.user);
+    return normalized;
   });
 }
 
@@ -377,7 +592,7 @@ export async function me() {
     '/api/auth/me',
     { method: 'GET', headers: token ? { Authorization: `Bearer ${token}` } : undefined },
     token
-  );
+  ).then((user) => toAuthUser(user));
 }
 
 export async function logout() {
@@ -406,8 +621,9 @@ export async function updateProfile(payload: { fullName?: string; companyName?: 
     },
     token
   ).then((user) => {
-    writeJsonStorage(USER_KEY, user);
-    return user;
+    const normalized = toAuthUser(user);
+    writeJsonStorage(USER_KEY, normalized);
+    return normalized;
   });
 }
 
@@ -454,89 +670,64 @@ export async function updateSettings(payload: NonNullable<AuthUser['settings']>)
 
 export async function listJobs() {
   const token = getStoredToken();
-  return safeRequest<JobRecord[]>(
+  return apiRequest<unknown>(
     '/api/jobs',
     { method: 'GET' },
-    () => storeState().jobs.map(toJobRecord),
     token
-  );
+  ).then((jobs) => normalizeApiArrayResponse(jobs, normalizeJobRecord));
 }
 
 export async function createJob(payload: JobRecord) {
   const token = getStoredToken();
-  return safeRequest<JobRecord>(
+  return apiRequest<unknown>(
     '/api/jobs',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     },
-    () => upsertLocalJob(payload),
     token
-  );
+  ).then((job) => normalizeJobRecord((job as any)?.job ?? job));
 }
 
 export async function updateJob(jobId: string, payload: Partial<JobRecord>) {
   const token = getStoredToken();
-  return safeRequest<JobRecord>(
+  return apiRequest<unknown>(
     `/api/jobs/${jobId}`,
     {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     },
-    () => upsertLocalJob({ ...payload, id: jobId }),
     token
-  );
+  ).then((job) => normalizeJobRecord((job as any)?.job ?? job));
 }
 
 export async function deleteJob(jobId: string) {
   const token = getStoredToken();
-  await safeRequest<{ message?: string }>(
+  await apiRequest<{ message?: string }>(
     `/api/jobs/${jobId}`,
     { method: 'DELETE' },
-    () => {
-      removeLocalJob(jobId);
-      return { message: 'Deleted locally' };
-    },
     token
   );
-  removeLocalJob(jobId);
 }
 
 export async function listCandidates() {
   const token = getStoredToken();
-  return safeRequest<CandidateRecord[]>(
+  return apiRequest<unknown>(
     '/api/candidates',
     { method: 'GET' },
-    () => storeState().candidates.map(toCandidateRecord),
     token
-  );
+  ).then((candidates) => normalizeApiArrayResponse(candidates, normalizeCandidateRecord));
 }
 
 export async function getCandidate(candidateId: string) {
   const token = getStoredToken();
-  return safeRequest<CandidateRecord>(
+  return apiRequest<unknown>(
     `/api/candidates/${candidateId}`,
     { method: 'GET' },
-    () => {
-      const candidate = storeState().candidates.find((item) => String(item.id) === String(candidateId)) || storeState().candidates[0];
-      if (!candidate) {
-        return {
-          source: 'manual',
-          personalInfo: {
-            firstName: '',
-            lastName: '',
-            email: '',
-            headline: '',
-            location: ''
-          }
-        };
-      }
-      return toCandidateRecord(candidate);
-    },
     token
-  );
+  ).then((candidate) => normalizeCandidateRecord((candidate as any)?.candidate ?? candidate));
 }
 
 export async function createCandidate(payload: (CandidateRecord & { avatarFile?: File }) | FormData) {
@@ -546,12 +737,11 @@ export async function createCandidate(payload: (CandidateRecord & { avatarFile?:
     const avatarFile = payload.avatarFile || createPlaceholderAvatarFile(`candidate-${Date.now()}.png`);
     if (avatarFile) body.append('avatar', avatarFile);
   }
-  return safeRequest<CandidateRecord>(
+  return apiRequest<unknown>(
     '/api/candidates',
     { method: 'POST', body },
-    () => upsertLocalCandidate(payload instanceof FormData ? ({ source: 'manual', personalInfo: { firstName: 'Imported', lastName: 'Candidate', email: `candidate-${Date.now()}@umurava.ai`, headline: 'Imported candidate', location: 'Unknown' } } as CandidateRecord) : payload),
     token
-  );
+  ).then((candidate) => normalizeCandidateRecord((candidate as any)?.candidate ?? candidate));
 }
 
 export async function updateCandidate(candidateId: string, payload: (CandidateRecord & { avatarFile?: File }) | FormData) {
@@ -561,32 +751,11 @@ export async function updateCandidate(candidateId: string, payload: (CandidateRe
     const avatarFile = payload.avatarFile;
     if (avatarFile) body.append('avatar', avatarFile);
   }
-  return safeRequest<CandidateRecord>(
+  return apiRequest<unknown>(
     `/api/candidates/${candidateId}`,
     { method: 'PATCH', body },
-    () => {
-      const current = storeState().candidates.find((candidate) => String(candidate.id) === String(candidateId));
-      const base: CandidateRecord = current
-        ? (clone(current) as CandidateRecord)
-        : {
-            id: candidateId,
-            source: 'manual',
-            personalInfo: {
-              firstName: '',
-              lastName: '',
-              email: '',
-              headline: '',
-              location: ''
-            }
-          };
-      return upsertLocalCandidate({
-        ...base,
-        ...(payload instanceof FormData ? {} : payload),
-        id: candidateId
-      });
-    },
     token
-  );
+  ).then((candidate) => normalizeCandidateRecord((candidate as any)?.candidate ?? candidate));
 }
 
 export async function updateCandidateWithAvatar(candidateId: string, payload: CandidateRecord, avatar?: File) {
@@ -597,16 +766,11 @@ export async function updateCandidateWithAvatar(candidateId: string, payload: Ca
 
 export async function deleteCandidate(candidateId: string) {
   const token = getStoredToken();
-  await safeRequest<{ message?: string }>(
+  await apiRequest<{ message?: string }>(
     `/api/candidates/${candidateId}`,
     { method: 'DELETE' },
-    () => {
-      removeLocalCandidate(candidateId);
-      return { message: 'Deleted locally' };
-    },
     token
   );
-  removeLocalCandidate(candidateId);
 }
 
 export async function requestPasswordReset(payload: { email: string }) {
@@ -623,218 +787,224 @@ export async function requestPasswordReset(payload: { email: string }) {
 
 export async function bulkCreateCandidates(payload: CandidateRecord[]) {
   const token = getStoredToken();
-  return safeRequest<CandidateRecord[]>(
+  return apiRequest<unknown>(
     '/api/candidates/bulk',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     },
-    () => payload.map(upsertLocalCandidate),
     token
-  );
+  ).then((candidates) => normalizeApiArrayResponse((candidates as any)?.candidates ?? candidates, normalizeCandidateRecord));
 }
 
 export async function runScreening(payload: { jobId: string; candidateIds: string[]; shortlistSize?: number }) {
   const token = getStoredToken();
-  return safeRequest<{
-    jobId: string;
-    totalCandidates: number;
-    shortlistedCount: number;
-    averageScore: number;
-    usedFallback: boolean;
-    summary: string;
-    results: ScreeningResult[];
-    incompleteCandidates: Array<{ candidateId: string; reason: string }>;
-  }>(
+  return apiRequest<unknown>(
     '/api/screenings/run',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     },
-    () => {
-      const screening = umuravaStore.runScreening(payload.jobId, { shortlistSize: payload.shortlistSize });
-      return {
-        jobId: screening.jobId,
-        totalCandidates: screening.totalCandidates,
-        shortlistedCount: screening.shortlistedCount,
-        averageScore: screening.averageScore,
-        usedFallback: true,
-        summary: `Screened ${screening.totalCandidates} candidates and shortlisted ${screening.shortlistedCount}.`,
-        results: screening.results.map((candidate) => ({
-          candidateId: String(candidate.id),
-          rank: candidate.rank,
-          score: candidate.score,
-          scoreBreakdown: candidate.scoreBreakdown,
-          strengths: candidate.strengths,
-          gaps: candidate.gaps,
-          reasoning: candidate.reasoning || '',
-          decision: candidate.decision as ScreeningResult['decision']
-        })),
-        incompleteCandidates: screening.incompleteCandidates.map((item) => ({
-          candidateId: String(item.candidateId),
-          reason: item.reason
-        }))
-      };
-    },
     token
-  );
+  ).then((result) => {
+    const screening = (result as any)?.screening ?? result;
+    return {
+      jobId: String(screening?.jobId || ''),
+      totalCandidates: Number(screening?.totalCandidates ?? 0),
+      shortlistedCount: Number(screening?.shortlistedCount ?? 0),
+      averageScore: Number(screening?.averageScore ?? 0),
+      usedFallback: Boolean(screening?.usedFallback),
+      summary: screening?.summary || '',
+      results: normalizeMaybeArray(screening?.results, (candidate: any) => ({
+        candidateId: String(candidate.candidateId ?? candidate.id ?? candidate._id ?? ''),
+        rank: Number(candidate.rank ?? 0),
+        score: Number(candidate.score ?? 0),
+        scoreBreakdown: {
+          skills: Number(candidate.scoreBreakdown?.skills ?? 0),
+          experience: Number(candidate.scoreBreakdown?.experience ?? 0),
+          education: Number(candidate.scoreBreakdown?.education ?? 0),
+          projects: Number(candidate.scoreBreakdown?.projects ?? 0),
+          certifications: Number(candidate.scoreBreakdown?.certifications ?? 0)
+        },
+        strengths: Array.isArray(candidate.strengths) ? candidate.strengths : [],
+        gaps: Array.isArray(candidate.gaps) ? candidate.gaps : [],
+        reasoning: candidate.reasoning || '',
+        decision: candidate.decision || 'review'
+      })),
+      incompleteCandidates: normalizeMaybeArray(screening?.incompleteCandidates, (item: any) => ({
+        candidateId: String(item.candidateId ?? item.id ?? item._id ?? ''),
+        reason: item.reason || 'Incomplete profile'
+      }))
+    };
+  });
 }
 
 export async function getLatestScreening(jobId?: string) {
   const token = getStoredToken();
-  const localFallback = () => {
-    const latest = jobId
-      ? storeState().screenings.find((screening) => screening.jobId === jobId) || storeState().screenings[0] || null
-      : storeState().screenings[0] || null;
-    return toScreeningRecord(latest);
-  };
-
   if (jobId) {
-    return safeRequest<ScreeningRecord | null>(
+    return apiRequest<unknown>(
       `/api/screenings/jobs/${jobId}/latest`,
       { method: 'GET' },
-      localFallback,
       token
-    );
+    ).then((screening) => normalizeScreeningRecord(screening));
   }
 
-  return localFallback();
+  return getDashboardSnapshot().then((snapshot) => snapshot.latestScreening);
 }
 
 export async function getScreening(screeningId: string) {
   const token = getStoredToken();
-  return safeRequest<ScreeningRecord>(
+  return apiRequest<unknown>(
     `/api/screenings/${screeningId}`,
     { method: 'GET' },
-    () => toScreeningRecord(storeState().screenings.find((screening) => screening.id === screeningId) || storeState().screenings[0]) as ScreeningRecord,
     token
-  );
+  ).then((screening) => normalizeScreeningRecord((screening as any)?.screening ?? screening) as ScreeningRecord);
 }
 
 export async function exportScreening(screeningId: string) {
   const token = getStoredToken();
-  return safeRequest<ScreeningRecord>(
+  return apiRequest<unknown>(
     `/api/screenings/${screeningId}/export`,
     { method: 'GET' },
-    () => toScreeningRecord(storeState().screenings.find((screening) => screening.id === screeningId) || storeState().screenings[0]) as ScreeningRecord,
     token
-  );
+  ).then((screening) => normalizeScreeningRecord((screening as any)?.screening ?? screening) as ScreeningRecord);
+}
+
+async function parseJsonCandidatesFile(file: File): Promise<CandidateRecord[]> {
+  const parsed = JSON.parse(await file.text());
+  const items = Array.isArray(parsed) ? parsed : [parsed];
+  return items as CandidateRecord[];
+}
+
+async function parseCsvCandidatesFile(file: File): Promise<CandidateRecord[]> {
+  const text = await file.text();
+  const lines = text.trim().split('\n').filter(Boolean);
+  const headers = lines[0]?.split(',').map((item) => item.trim().replace(/"/g, '')) || [];
+  const candidates: CandidateRecord[] = [];
+  lines.slice(1).forEach((line) => {
+    const values = line.split(',').map((item) => item.trim().replace(/"/g, ''));
+    const row: Record<string, string> = {};
+    headers.forEach((header, index) => {
+      row[header] = values[index] || '';
+    });
+    if (!row.firstName || !row.lastName || !row.email) return;
+    candidates.push({
+      source: 'csv',
+      personalInfo: {
+        firstName: row.firstName,
+        lastName: row.lastName,
+        email: row.email,
+        headline: row.headline || 'Candidate',
+        location: row.location || 'Unknown',
+        bio: ''
+      },
+      skills: row.skills ? row.skills.split(';').map((skill) => ({ name: skill.trim(), level: 'Intermediate', yearsOfExperience: Number(row.yearsExperience) || 1 })) : [],
+      languages: [],
+      experience: row.company ? [{ company: row.company, role: row.role || 'Professional', startDate: '2020-01', endDate: 'Present', description: '', technologies: [], isCurrent: true }] : [],
+      education: row.degree ? [{ institution: 'University', degree: row.degree, fieldOfStudy: 'General', startYear: 2016, endYear: 2020 }] : [],
+      certifications: [],
+      projects: [],
+      availability: { status: row.availability || 'Available', type: 'Full-time' },
+      socialLinks: {}
+    });
+  });
+  return candidates;
+}
+
+async function parsePdfCandidateFile(file: File): Promise<CandidateRecord[]> {
+  return [
+    {
+      source: 'pdf',
+      sourceFileName: file.name,
+      personalInfo: {
+        firstName: file.name.split('.')[0].split('_')[0] || 'Candidate',
+        lastName: file.name.split('_')[1] || 'PDF',
+        email: `candidate-${Date.now()}@parsed.ai`,
+        headline: 'Parsed from PDF Resume',
+        location: 'Kigali, Rwanda',
+        bio: 'Extracted via local fallback parsing.'
+      },
+      skills: [{ name: 'Node.js', level: 'Intermediate', yearsOfExperience: 2 }],
+      languages: [],
+      experience: [{ company: 'Previous Company', role: 'Professional', startDate: '2021-01', endDate: 'Present', description: 'Extracted from PDF.', technologies: [], isCurrent: true }],
+      education: [{ institution: 'University', degree: "Bachelor's", fieldOfStudy: 'Computer Science', startYear: 2017, endYear: 2021 }],
+      certifications: [],
+      projects: [],
+      availability: { status: 'Available', type: 'Full-time' },
+      socialLinks: {}
+    }
+  ];
 }
 
 export async function uploadJson(file: File) {
   const token = getStoredToken();
   const formData = new FormData();
   formData.append('file', file);
-  return safeRequest<CandidateRecord[]>(
+  const response = await apiRequest<unknown>(
     '/api/uploads/json',
     { method: 'POST', body: formData },
-    async () => {
-      const parsed = JSON.parse(await file.text());
-      const items = Array.isArray(parsed) ? parsed : [parsed];
-      return bulkCreateCandidates(items as CandidateRecord[]);
-    },
     token
   );
+  if (Array.isArray(response)) return response.map(normalizeCandidateRecord);
+  if (response && typeof response === 'object' && Array.isArray((response as { candidates?: unknown[] }).candidates)) {
+    return ((response as { candidates: unknown[] }).candidates || []).map(normalizeCandidateRecord);
+  }
+  return (await parseJsonCandidatesFile(file)).map(normalizeCandidateRecord);
 }
 
 export async function uploadCsv(file: File) {
   const token = getStoredToken();
   const formData = new FormData();
   formData.append('file', file);
-  return safeRequest<CandidateRecord[]>(
+  const response = await apiRequest<unknown>(
     '/api/uploads/csv',
     { method: 'POST', body: formData },
-    async () => {
-      const text = await file.text();
-      const lines = text.trim().split('\n').filter(Boolean);
-      const headers = lines[0]?.split(',').map((item) => item.trim().replace(/"/g, '')) || [];
-      const candidates: CandidateRecord[] = [];
-      lines.slice(1).forEach((line) => {
-        const values = line.split(',').map((item) => item.trim().replace(/"/g, ''));
-        const row: Record<string, string> = {};
-        headers.forEach((header, index) => {
-          row[header] = values[index] || '';
-        });
-        if (!row.firstName || !row.lastName || !row.email) return;
-        candidates.push({
-          source: 'csv',
-          personalInfo: {
-            firstName: row.firstName,
-            lastName: row.lastName,
-            email: row.email,
-            headline: row.headline || 'Candidate',
-            location: row.location || 'Unknown',
-            bio: ''
-          },
-          skills: row.skills ? row.skills.split(';').map((skill) => ({ name: skill.trim(), level: 'Intermediate', yearsOfExperience: Number(row.yearsExperience) || 1 })) : [],
-          languages: [],
-          experience: row.company ? [{ company: row.company, role: row.role || 'Professional', startDate: '2020-01', endDate: 'Present', description: '', technologies: [], isCurrent: true }] : [],
-          education: row.degree ? [{ institution: 'University', degree: row.degree, fieldOfStudy: 'General', startYear: 2016, endYear: 2020 }] : [],
-          certifications: [],
-          projects: [],
-          availability: { status: row.availability || 'Available', type: 'Full-time' },
-          socialLinks: {}
-        });
-      });
-      return bulkCreateCandidates(candidates);
-    },
     token
   );
+  if (Array.isArray(response)) return response.map(normalizeCandidateRecord);
+  if (response && typeof response === 'object' && Array.isArray((response as { candidates?: unknown[] }).candidates)) {
+    return ((response as { candidates: unknown[] }).candidates || []).map(normalizeCandidateRecord);
+  }
+  return (await parseCsvCandidatesFile(file)).map(normalizeCandidateRecord);
 }
 
 export async function uploadPdf(file: File) {
   const token = getStoredToken();
   const formData = new FormData();
   formData.append('file', file);
-  return safeRequest<CandidateRecord[]>(
+  const response = await apiRequest<unknown>(
     '/api/uploads/pdf',
     { method: 'POST', body: formData },
-    () => {
-      const candidate: CandidateRecord = {
-        source: 'pdf',
-        sourceFileName: file.name,
-        personalInfo: {
-          firstName: file.name.split('.')[0].split('_')[0] || 'Candidate',
-          lastName: file.name.split('_')[1] || 'PDF',
-          email: `candidate-${Date.now()}@parsed.ai`,
-          headline: 'Parsed from PDF Resume',
-          location: 'Kigali, Rwanda',
-          bio: 'Extracted via local fallback parsing.'
-        },
-        skills: [{ name: 'Node.js', level: 'Intermediate', yearsOfExperience: 2 }],
-        languages: [],
-        experience: [{ company: 'Previous Company', role: 'Professional', startDate: '2021-01', endDate: 'Present', description: 'Extracted from PDF.', technologies: [], isCurrent: true }],
-        education: [{ institution: 'University', degree: "Bachelor's", fieldOfStudy: 'Computer Science', startYear: 2017, endYear: 2021 }],
-        certifications: [],
-        projects: [],
-        availability: { status: 'Available', type: 'Full-time' },
-        socialLinks: {}
-      };
-      return [upsertLocalCandidate(candidate)];
-    },
     token
   );
+  if (Array.isArray(response)) return response.map(normalizeCandidateRecord);
+  if (response && typeof response === 'object' && Array.isArray((response as { candidates?: unknown[] }).candidates)) {
+    return ((response as { candidates: unknown[] }).candidates || []).map(normalizeCandidateRecord);
+  }
+  return (await parsePdfCandidateFile(file)).map(normalizeCandidateRecord);
 }
 
 export async function uploadAvatar(file: File) {
   const token = getStoredToken();
   const formData = new FormData();
   formData.append('file', file);
-  return safeRequest<{ url: string; publicId?: string }>(
+  return apiRequest<unknown>(
     '/api/uploads/avatar',
     { method: 'POST', body: formData },
-    () => ({ url: URL.createObjectURL(file) }),
     token
-  );
+  ).then((response) => normalizeApiObjectResponse((response as any)?.avatar ?? response, (avatar) => ({
+    url: String(avatar?.url || ''),
+    publicId: avatar?.publicId
+  })));
 }
 
 export async function getDashboardSnapshot() {
-  const [jobs, candidates, latestScreening] = await Promise.all([listJobs(), listCandidates(), getLatestScreening()]);
-  return {
-    jobs,
-    candidates,
-    latestScreening
-  };
+  const token = getStoredToken();
+  return apiRequest<unknown>(
+    '/api/dashboard/snapshot',
+    { method: 'GET' },
+    token
+  ).then((snapshot) => normalizeDashboardSnapshot(snapshot));
 }

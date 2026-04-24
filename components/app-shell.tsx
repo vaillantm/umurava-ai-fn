@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { getCachedUser, type AuthUser } from '@/lib/backend';
 
 type SidebarKey = 'dashboard' | 'jobs' | 'candidates' | 'shortlist' | 'external' | 'settings';
 
@@ -24,6 +25,12 @@ const sidebarItems: Array<{ key: SidebarKey; label: string; icon: string; href: 
 ];
 
 export function AppShell({ activeSidebar, navLabel, children, actions, navLinks, showDashboardLink = true }: AppShellProps) {
+  const [user, setUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => {
+    setUser(getCachedUser());
+  }, []);
+
   return (
     <div className="page">
       <nav>
@@ -37,10 +44,10 @@ export function AppShell({ activeSidebar, navLabel, children, actions, navLinks,
         <div className="nav-actions">
           {showDashboardLink ? (
             <Link className="profile-chip" href="/profile" style={{ cursor: 'pointer' }}>
-              <img alt="Jane Doe profile picture" src="https://i.pravatar.cc/68?img=47" />
+              <img alt={`${user?.fullName || 'Recruiter'} profile picture`} src={user?.avatarUrl || 'https://i.pravatar.cc/68?img=47'} />
               <div className="profile-text">
-                <div className="profile-name">Jane Doe</div>
-                <div className="profile-role">Recruiter</div>
+                <div className="profile-name">{user?.fullName || 'Recruiter'}</div>
+                <div className="profile-role">{user?.role ? `${user.role.charAt(0).toUpperCase()}${user.role.slice(1)}` : 'Recruiter'}</div>
               </div>
             </Link>
           ) : null}

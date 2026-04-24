@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    optimizePackageImports: ['recharts']
+  },
   webpack: (config, { dev }) => {
     if (dev) {
       config.watchOptions = {
@@ -16,7 +19,6 @@ const nextConfig = {
         ]
       };
     }
-
     return config;
   }
 };

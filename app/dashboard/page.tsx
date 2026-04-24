@@ -1,65 +1,34 @@
 'use client';
 
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
 import { AppShell } from '@/components/app-shell';
-import { getDashboardSnapshot, logout, type CandidateRecord, type JobRecord, type ScreeningRecord } from '@/lib/backend';
+import { getCachedUser, listJobs, listCandidates, getLatestScreening, logout, type CandidateRecord, type JobRecord, type ScreeningRecord } from '@/lib/backend';
 
-const PIE_COLORS = ['#2563eb', '#16a34a', '#f59e0b'];
+const WeeklyChartDynamic = dynamic(() => import('@/components/dashboard-charts').then((m) => ({ default: m.WeeklyChart })), { ssr: false, loading: () => <div style={{ height: 220 }} /> });
+const PipelinePieDynamic = dynamic(() => import('@/components/dashboard-charts').then((m) => ({ default: m.PipelinePie })), { ssr: false, loading: () => <div style={{ height: 180 }} /> });
+const JobsBarChartDynamic = dynamic(() => import('@/components/dashboard-charts').then((m) => ({ default: m.JobsBarChart })), { ssr: false, loading: () => <div style={{ height: 180 }} /> });
 
-const statIcons: Record<string, string> = {
-  activeJobs: 'work',
-  totalApplicants: 'group',
-  aiScreened: 'psychology',
-  shortlisted: 'emoji_events'
-};
+const PIE_COLORS_STATIC = ['#2563eb', '#16a34a', '#f59e0b'];
 
-const statColors: Record<string, string> = {
-  activeJobs: 'var(--primary)',
-  totalApplicants: '#7c3aed',
-  aiScreened: 'var(--green)',
-  shortlisted: '#f59e0b'
-};
+const statIcons: Record<string, string> = { activeJobs: 'work', totalApplicants: 'group', aiScreened: 'psychology', shortlisted: 'emoji_events' };
+const statColors: Record<string, string> = { activeJobs: 'var(--primary)', totalApplicants: '#7c3aed', aiScreened: 'var(--green)', shortlisted: '#f59e0b' };
+const statBg: Record<string, string> = { activeJobs: 'rgba(37,99,235,0.08)', totalApplicants: 'rgba(124,58,237,0.08)', aiScreened: 'rgba(22,163,74,0.08)', shortlisted: 'rgba(245,158,11,0.08)' };
 
-const statBg: Record<string, string> = {
-  activeJobs: 'rgba(37,99,235,0.08)',
-  totalApplicants: 'rgba(124,58,237,0.08)',
-  aiScreened: 'rgba(22,163,74,0.08)',
-  shortlisted: 'rgba(245,158,11,0.08)'
-};
-
-type Snapshot = {
-  jobs: JobRecord[];
-  candidates: CandidateRecord[];
-  latestScreening: ScreeningRecord | null;
-};
+type Snapshot = { jobs: JobRecord[]; candidates: CandidateRecord[]; latestScreening: ScreeningRecord | null };
 
 export default function DashboardPage() {
   const [snapshot, setSnapshot] = useState<Snapshot>({ jobs: [], candidates: [], latestScreening: null });
+  const user = getCachedUser();
 
   useEffect(() => {
     let alive = true;
-    getDashboardSnapshot().then((data) => {
+    Promise.all([listJobs(), listCandidates(), getLatestScreening()]).then(([jobs, candidates, latestScreening]) => {
       if (!alive) return;
-      setSnapshot(data);
+      setSnapshot({ jobs, candidates, latestScreening });
     });
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, []);
 
   const summary = useMemo(() => {
@@ -73,37 +42,26 @@ export default function DashboardPage() {
 
   const weeklyData = useMemo(() => {
     const results = snapshot.latestScreening?.results || [];
-    const base = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    return base.map((day, index) => {
-      const chunk = results.filter((_, resultIndex) => resultIndex % 7 === index);
-      const screened = chunk.length;
-      return {
-        day,
-        screened,
-        shortlisted: chunk.filter((item) => item.decision === 'shortlisted').length
-      };
+    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, index) => {
+      const chunk = results.filter((_, i) => i % 7 === index);
+      return { day, screened: chunk.length, shortlisted: chunk.filter((r) => r.decision === 'shortlisted').length };
     });
   }, [snapshot.latestScreening]);
 
-  const jobRows = useMemo(() => {
-    return snapshot.jobs.slice(0, 4).map((job) => ({
-      title: job.title,
-      dept: job.department || 'General',
-      location: job.location || 'Remote',
-      count: summary.totalApplicants,
-      status: job.status || 'draft',
-      href: '/jobs'
-    }));
-  }, [snapshot.jobs, summary.totalApplicants]);
+  const jobRows = useMemo(() => snapshot.jobs.map((job) => ({
+    title: job.title, company: job.company || 'Umurava', dept: job.department || 'General',
+    location: job.location || 'Remote',
+    shortlisted: Array.isArray(job.shortlistedCandidates) ? job.shortlistedCandidates.length : 0,
+    shortlistSize: job.shortlistSize || 0, status: job.status || 'draft', href: '/jobs'
+  })), [snapshot.jobs]);
 
-  const pieData = useMemo(
-    () => [
-      { name: 'Shortlisted', value: summary.shortlisted || 0 },
-      { name: 'Screened', value: Math.max(summary.aiScreened - summary.shortlisted, 0) },
-      { name: 'Pending', value: summary.incompleteCount }
-    ],
-    [summary]
-  );
+  const pieData = useMemo(() => [
+    { name: 'Shortlisted', value: summary.shortlisted || 0 },
+    { name: 'Screened', value: Math.max(summary.aiScreened - summary.shortlisted, 0) },
+    { name: 'Pending', value: summary.incompleteCount }
+  ], [summary]);
+
+  const barData = useMemo(() => snapshot.jobs.map((job) => ({ dept: job.department || job.title, count: job.shortlistSize || 0 })), [snapshot.jobs]);
 
   const stats = [
     { key: 'activeJobs', label: 'Active Jobs', value: summary.activeJobs, delta: 'Live now' },
@@ -117,30 +75,19 @@ export default function DashboardPage() {
       activeSidebar="dashboard"
       navLinks={<div className="nav-link active">Dashboard</div>}
       actions={
-        <button
-          className="btn btn-ghost btn-sm"
-          type="button"
-          onClick={async () => {
-            await logout();
-            window.location.assign('/');
-          }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
-            logout
-          </span>
+        <button className="btn btn-ghost btn-sm" type="button" onClick={async () => { await logout(); window.location.assign('/'); }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>logout</span>
           Logout
         </button>
       }
     >
       <div className="dash-page-header">
         <div>
-          <div className="dash-greeting">Good morning, Jane</div>
+          <div className="dash-greeting">Good morning, {user?.fullName?.split(' ')[0] || 'Jane'}</div>
           <div className="dash-subtitle">Here's what's happening with your hiring pipeline today.</div>
         </div>
         <Link className="btn btn-primary" href="/jobs">
-          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-            add
-          </span>
+          <span className="material-symbols-outlined" style={{ fontSize: 18 }}>add</span>
           New Job Posting
         </Link>
       </div>
@@ -152,9 +99,7 @@ export default function DashboardPage() {
               <span className="material-symbols-outlined">{statIcons[stat.key]}</span>
             </div>
             <div className="dash-stat-body">
-              <div className="dash-stat-value" style={{ color: statColors[stat.key] }}>
-                {stat.value}
-              </div>
+              <div className="dash-stat-value" style={{ color: statColors[stat.key] }}>{stat.value}</div>
               <div className="dash-stat-label">{stat.label}</div>
               <div className="dash-stat-delta">{stat.delta}</div>
             </div>
@@ -166,61 +111,29 @@ export default function DashboardPage() {
         <div className="dash-card dash-card-wide">
           <div className="dash-card-header">
             <div className="dash-card-title">
-              <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--primary)' }}>
-                trending_up
-              </span>
+              <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--primary)' }}>trending_up</span>
               Weekly Screening Activity
             </div>
           </div>
           <div className="dash-card-body">
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={weeklyData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="gScreened" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.15} />
-                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="gShortlisted" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#16a34a" stopOpacity={0.15} />
-                    <stop offset="95%" stopColor="#16a34a" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis dataKey="day" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
-                <Area type="monotone" dataKey="screened" stroke="#2563eb" strokeWidth={2} fill="url(#gScreened)" name="Screened" />
-                <Area type="monotone" dataKey="shortlisted" stroke="#16a34a" strokeWidth={2} fill="url(#gShortlisted)" name="Shortlisted" />
-              </AreaChart>
-            </ResponsiveContainer>
+            <WeeklyChartDynamic data={weeklyData} />
           </div>
         </div>
 
         <div className="dash-card dash-card-side">
           <div className="dash-card-header">
             <div className="dash-card-title">
-              <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#f59e0b' }}>
-                donut_large
-              </span>
+              <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#f59e0b' }}>donut_large</span>
               Pipeline Status
             </div>
           </div>
           <div className="dash-card-body dash-card-stack">
-            <ResponsiveContainer width="100%" height={180}>
-              <PieChart>
-                <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={3} dataKey="value">
-                  {pieData.map((_, i) => (
-                    <Cell key={i} fill={PIE_COLORS[i]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
-              </PieChart>
-            </ResponsiveContainer>
+            <PipelinePieDynamic data={pieData} />
             <div className="dash-pie-legend">
               {pieData.map((item, index) => (
                 <div key={item.name} className="dash-pie-row">
                   <div className="dash-pie-label">
-                    <span className="dash-pie-swatch" style={{ background: PIE_COLORS[index] }} />
+                    <span className="dash-pie-swatch" style={{ background: PIE_COLORS_STATIC[index] }} />
                     {item.name}
                   </div>
                   <strong>{item.value}</strong>
@@ -235,61 +148,36 @@ export default function DashboardPage() {
         <div className="dash-card dash-card-wide">
           <div className="dash-card-header">
             <div className="dash-card-title">
-              <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--primary)' }}>
-                work
-              </span>
+              <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--primary)' }}>work</span>
               Active Jobs
             </div>
-            <Link className="btn btn-ghost btn-sm" href="/jobs">
-              View all
-            </Link>
+            <Link className="btn btn-ghost btn-sm" href="/jobs">View all</Link>
           </div>
           <div className="dash-card-body">
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={snapshot.jobs.map((job) => ({ dept: job.department || job.title, count: job.shortlistSize || 0 }))} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                <XAxis dataKey="dept" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
-                <Bar dataKey="count" fill="#2563eb" radius={[4, 4, 0, 0]} name="Shortlist Size" />
-              </BarChart>
-            </ResponsiveContainer>
+            <JobsBarChartDynamic data={barData} />
           </div>
           <div className="dash-table-wrap">
             <table className="dash-table">
               <thead>
-                <tr>
-                  <th>Role</th>
-                  <th>Dept</th>
-                  <th>Applicants</th>
-                  <th>Status</th>
-                  <th />
-                </tr>
+                <tr><th>Role</th><th>Company</th><th>Location</th><th>Shortlisted</th><th>Status</th><th /></tr>
               </thead>
               <tbody>
-                {jobRows.map((row) => (
-                  <tr key={`${row.title}-${row.dept}`}>
-                    <td>
-                      <span className="dash-table-bold">{row.title}</span>
-                    </td>
-                    <td>
-                      <span className="dash-table-muted">{row.dept}</span>
-                    </td>
-                    <td>
-                      <span className="dash-table-muted">{row.count}</span>
-                    </td>
+                {jobRows.length ? jobRows.map((row) => (
+                  <tr key={`${row.title}-${row.company}-${row.dept}`}>
+                    <td><span className="dash-table-bold">{row.title}</span></td>
+                    <td><span className="dash-table-muted">{row.company}</span></td>
+                    <td><span className="dash-table-muted">{row.location}</span></td>
+                    <td><span className="dash-table-muted">{row.shortlisted}/{row.shortlistSize}</span></td>
                     <td>
                       <span className={`badge badge-${row.status === 'active' ? 'active' : row.status === 'closed' ? 'closed' : 'pending'}`}>
                         {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
                       </span>
                     </td>
-                    <td>
-                      <Link className="btn btn-ghost btn-sm" href={row.href}>
-                        Open
-                      </Link>
-                    </td>
+                    <td><Link className="btn btn-ghost btn-sm" href={row.href}>Open</Link></td>
                   </tr>
-                ))}
+                )) : (
+                  <tr><td colSpan={6}><div className="dash-empty-state">No jobs yet. Create a job to populate this table.</div></td></tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -298,36 +186,24 @@ export default function DashboardPage() {
         <div className="dash-card dash-card-side">
           <div className="dash-card-header">
             <div className="dash-card-title">
-              <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--green)' }}>
-                psychology
-              </span>
+              <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--green)' }}>psychology</span>
               Recent AI Screenings
             </div>
           </div>
           <div className="dash-screening-list">
             {(snapshot.latestScreening?.results || []).slice(0, 5).map((candidate) => {
-              const candidateRecord = snapshot.candidates.find((item) => String(item.id) === String(candidate.candidateId));
-              const name = candidateRecord
-                ? `${candidateRecord.personalInfo.firstName} ${candidateRecord.personalInfo.lastName}`
-                : candidate.candidateId;
-              const role = candidateRecord?.personalInfo.headline || 'Candidate';
+              const rec = snapshot.candidates.find((c) => String(c.id) === String(candidate.candidateId));
+              const name = rec ? `${rec.personalInfo.firstName} ${rec.personalInfo.lastName}` : candidate.candidateId;
+              const role = rec?.personalInfo.headline || 'Candidate';
               return (
                 <div className="dash-screening-row" key={candidate.candidateId}>
-                  <div className="dash-screening-avatar">
-                    {name
-                      .split(' ')
-                      .filter(Boolean)
-                      .slice(0, 2)
-                      .map((part) => part[0])
-                      .join('')}
-                  </div>
+                  <div className="dash-screening-avatar">{name.split(' ').filter(Boolean).slice(0, 2).map((p) => p[0]).join('')}</div>
                   <div className="dash-screening-info">
                     <div className="dash-screening-name">{name}</div>
                     <div className="dash-screening-role">{role}</div>
                   </div>
                   <div className="dash-screening-score" style={{ color: candidate.score >= 80 ? 'var(--green)' : candidate.score >= 70 ? 'var(--primary)' : 'var(--text-muted)' }}>
-                    {candidate.score}
-                    <span style={{ fontSize: 10, opacity: 0.6 }}>/100</span>
+                    {candidate.score}<span style={{ fontSize: 10, opacity: 0.6 }}>/100</span>
                   </div>
                 </div>
               );
