@@ -249,25 +249,38 @@ export default function CandidatesPage() {
                 ))}
               </select>
             </div>
-            <div className="progress-bar" style={{ marginBottom: 24 }}>
+            <div className="progress-bar" style={{ marginBottom: 8 }}>
               <div className="progress-fill" style={{ width: `${progress}%` }} />
             </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'DM Mono, monospace' }}>
+                {complete ? 'Done' : stepIndex >= 0 ? steps[stepIndex] : 'Starting...'}
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 800, fontFamily: 'DM Mono, monospace', color: progress === 100 ? 'var(--green)' : 'var(--primary)' }}>
+                {Math.round(progress)}%
+              </span>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {steps.map((step, index) => (
-                <div
-                  key={step}
-                  className={`proc-step ${index < stepIndex ? 'done' : index === stepIndex ? 'running' : 'pending'}`}
-                  style={{ padding: '12px 16px', borderRadius: 10, background: 'var(--surface2)' }}
-                >
-                  <span className="proc-step-icon material-symbols-outlined" style={{ fontSize: 20, color: index <= stepIndex ? 'var(--primary)' : 'var(--text-muted)' }}>
-                    {index === 0 ? 'description' : index === 1 ? 'psychology' : index === 2 ? 'calculate' : index === 3 ? 'leaderboard' : 'task_alt'}
-                  </span>
-                  <span style={{ flex: 1, fontSize: 13 }}>{step}</span>
-                  <span className="proc-step-status" style={{ fontSize: 12, fontFamily: 'DM Mono' }}>
-                    {index < stepIndex ? 'complete' : index === stepIndex ? 'processing' : 'waiting'}
-                  </span>
-                </div>
-              ))}
+              {steps.map((step, index) => {
+                const pct = Math.round(((index + 1) / steps.length) * 100);
+                const isDone = index < stepIndex;
+                const isRunning = index === stepIndex;
+                return (
+                  <div
+                    key={step}
+                    className={`proc-step ${isDone ? 'done' : isRunning ? 'running' : 'pending'}`}
+                    style={{ padding: '12px 16px', borderRadius: 10, background: 'var(--surface2)' }}
+                  >
+                    <span className="proc-step-icon material-symbols-outlined" style={{ fontSize: 20, color: index <= stepIndex ? 'var(--primary)' : 'var(--text-muted)' }}>
+                      {index === 0 ? 'description' : index === 1 ? 'psychology' : index === 2 ? 'calculate' : index === 3 ? 'leaderboard' : 'task_alt'}
+                    </span>
+                    <span style={{ flex: 1, fontSize: 13 }}>{step}</span>
+                    <span style={{ fontSize: 12, fontFamily: 'DM Mono', color: isDone || (isRunning && complete) ? 'var(--green)' : isRunning ? 'var(--primary)' : 'var(--text-muted)', fontWeight: isDone || isRunning ? 700 : 400 }}>
+                      {isDone || (isRunning && complete) ? 'complete' : isRunning ? 'processing' : 'waiting'}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
             <div style={{ marginTop: 28 }}>
               <button

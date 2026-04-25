@@ -1,13 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
 import { exportScreening, getLatestScreening, listCandidates, listJobs, runScreening, type ScreeningRecord } from '@/lib/api';
 import { showToast } from '@/lib/toast';
 
-export default function ShortlistPage() {
+function ShortlistPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [screening, setScreening] = useState<ScreeningRecord | null>(null);
@@ -305,5 +305,13 @@ export default function ShortlistPage() {
         </div>
       ) : null}
     </AppShell>
+  );
+}
+
+export default function ShortlistPage() {
+  return (
+    <Suspense fallback={null}>
+      <ShortlistPageContent />
+    </Suspense>
   );
 }

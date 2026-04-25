@@ -41,6 +41,12 @@ function withQuery(path: string, query: Record<string, string | number | undefin
   return qs ? `${path}?${qs}` : path;
 }
 
+function toJsonFile(input: File | string | unknown): File {
+  if (input instanceof File) return input;
+  const text = typeof input === 'string' ? input : JSON.stringify(input, null, 2);
+  return new File([text], 'candidates.json', { type: 'application/json' });
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface JobRecord {
@@ -281,7 +287,7 @@ export async function deleteCandidate(candidateId: string): Promise<void> {
 
 export async function getLatestScreening(jobId?: string): Promise<ScreeningRecord | null> {
   try {
-    const path = jobId ? `/api/screenings/jobs/${jobId}/latest` : '/api/screenings/latest';
+    const path = jobId ? `/api/screenings/latest?jobId=${jobId}` : '/api/screenings/latest';
     const data = await req<any>(path, { method: 'GET' });
     return normalizeScreening(data?.screening ?? data);
   } catch {
@@ -347,8 +353,9 @@ export async function exportScreening(screeningId: string): Promise<ScreeningRec
 
 // ─── Uploads ──────────────────────────────────────────────────────────────────
 
-export async function uploadJson(file: File, jobId?: string): Promise<CandidateRecord[]> {
-  const form = new FormData(); form.append('file', file);
+export async function uploadJson(fileOrJson: File | string | unknown, jobId?: string): Promise<CandidateRecord[]> {
+  const form = new FormData();
+  form.append('file', toJsonFile(fileOrJson));
   const data = await req<any>(withQuery('/api/uploads/json', { jobId }), { method: 'POST', body: form });
   return arr(data?.candidates ?? data, normalizeCandidate);
 }
