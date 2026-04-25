@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
-import { createJob, deleteJob, listJobs, updateJob, type JobRecord } from '@/lib/backend';
+import { createJob, deleteJob, listJobs, updateJob, type JobRecord } from '@/lib/api';
 import { showToast } from '@/lib/toast';
 
 type WeightKey = 'skills' | 'experience' | 'education' | 'projects' | 'certifications';
@@ -35,6 +35,7 @@ const DEFAULT_FORM = {
 export default function JobsPage() {
   const [open, setOpen] = useState(false);
   const [jobs, setJobs] = useState<JobRecord[]>([]);
+  const [loading, setLoading] = useState(true);
   const [skills, setSkills] = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState('');
   const [weights, setWeights] = useState<Record<WeightKey, number>>(DEFAULT_WEIGHTS);
@@ -47,6 +48,8 @@ export default function JobsPage() {
     listJobs().then((items) => {
       if (!alive) return;
       setJobs(items);
+    }).finally(() => {
+      if (alive) setLoading(false);
     });
     return () => {
       alive = false;
@@ -182,7 +185,7 @@ export default function JobsPage() {
     >
       <div className="page-header">
         <div className="page-title">
-          Job Postings <span>{jobs.length ? `${jobs.length} roles` : 'No jobs yet'}</span>
+          Job Postings <span>{loading ? 'Loading...' : jobs.length ? `${jobs.length} roles` : 'No jobs yet'}</span>
         </div>
         <button className="btn btn-primary btn-sm" onClick={openCreate} type="button">
           <span className="material-symbols-outlined">add</span> Add Job
@@ -190,7 +193,26 @@ export default function JobsPage() {
       </div>
 
       <div className="jobs-list">
-        {jobSummary.map((job) => (
+        {loading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <div className="job-card job-card-skeleton" key={i}>
+              <div className="skeleton skeleton-icon" />
+              <div className="job-card-info">
+                <div className="skeleton skeleton-title" />
+                <div className="skeleton skeleton-meta" />
+              </div>
+              <div className="job-card-actions">
+                <div className="skeleton skeleton-badge" />
+                <div className="skeleton skeleton-btn" />
+                <div className="skeleton skeleton-btn" />
+              </div>
+            </div>
+          ))
+        ) : jobSummary.length === 0 ? (
+          <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
+            No jobs yet. Click <strong>Add Job</strong> to create your first posting.
+          </div>
+        ) : jobSummary.map((job) => (
           <div className="job-card" key={job.id}>
             <div className="job-card-icon">
               <span className="material-symbols-outlined">{job.icon}</span>

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
-import { getCachedUser, listJobs, listCandidates, getLatestScreening, logout, type CandidateRecord, type JobRecord, type ScreeningRecord } from '@/lib/backend';
+import { getCachedUser, listJobs, listCandidates, getLatestScreening, logout, type CandidateRecord, type JobRecord, type ScreeningRecord } from '@/lib/api';
 
 const WeeklyChartDynamic = dynamic(() => import('@/components/dashboard-charts').then((m) => ({ default: m.WeeklyChart })), { ssr: false, loading: () => <div style={{ height: 220 }} /> });
 const PipelinePieDynamic = dynamic(() => import('@/components/dashboard-charts').then((m) => ({ default: m.PipelinePie })), { ssr: false, loading: () => <div style={{ height: 180 }} /> });

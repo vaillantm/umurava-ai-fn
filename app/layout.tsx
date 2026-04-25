@@ -17,16 +17,12 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
   return (
     <html lang="en" data-scroll-behavior="smooth" className={`${roboto.variable} ${dmMono.variable} ${instrumentSerif.variable}`}>
       <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0"
-          media="print"
-          // @ts-ignore
-          onLoad="this.media='all'"
         />
-        <noscript>
-          <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
-        </noscript>
       </head>
       <body>
         <ToastHost />

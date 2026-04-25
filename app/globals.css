@@ -56,11 +56,27 @@ textarea {
 }
 
 .material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  font-display: block;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   vertical-align: middle;
+  user-select: none;
+  overflow: hidden;
 }
 
 ::-webkit-scrollbar {
@@ -1615,6 +1631,22 @@ nav {
   border: 1px solid var(--border);
 }
 
+.profile-avatar-fallback {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border: 1px solid rgba(37,99,235,0.3);
+  letter-spacing: 0.5px;
+}
+
 .profile-chip .profile-text {
   display: flex;
   flex-direction: column;
@@ -1849,6 +1881,48 @@ nav {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 6px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeleton-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.skeleton-title {
+  height: 16px;
+  width: 200px;
+  margin-bottom: 10px;
+}
+
+.skeleton-meta {
+  height: 12px;
+  width: 300px;
+}
+
+.skeleton-badge {
+  height: 24px;
+  width: 56px;
+  border-radius: 999px;
+}
+
+.skeleton-btn {
+  height: 28px;
+  width: 52px;
+  border-radius: 6px;
 }
 
 .job-card {

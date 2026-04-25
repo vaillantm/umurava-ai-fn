@@ -3,10 +3,10 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
-import { getSettings, updateSettings, type AuthUser } from '@/lib/backend';
+import { getSettings, updateSettings, type AISettings } from '@/lib/api';
 import { showToast } from '@/lib/toast';
 
-type SettingsState = NonNullable<AuthUser['settings']>;
+type SettingsState = AISettings;
 
 const DEFAULT_SETTINGS: SettingsState = {
   primaryModel: 'gemini-2.5-pro',

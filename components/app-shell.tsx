@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState, type ReactNode } from 'react';
-import { getCachedUser, type AuthUser } from '@/lib/backend';
+import { getCachedUser, type AuthUser } from '@/lib/auth';
 
 type SidebarKey = 'dashboard' | 'jobs' | 'candidates' | 'shortlist' | 'external' | 'settings';
 
@@ -44,7 +44,13 @@ export function AppShell({ activeSidebar, navLabel, children, actions, navLinks,
         <div className="nav-actions">
           {showDashboardLink ? (
             <Link className="profile-chip" href="/profile" style={{ cursor: 'pointer' }}>
-              <img alt={`${user?.fullName || 'Recruiter'} profile picture`} src={user?.avatarUrl || 'https://i.pravatar.cc/68?img=47'} />
+              {user?.avatarUrl ? (
+                <img alt={`${user.fullName} profile picture`} src={user.avatarUrl} />
+              ) : (
+                <div className="profile-avatar-fallback">
+                  {(user?.fullName || 'R').split(' ').slice(0, 2).map((n) => n[0]).join('').toUpperCase()}
+                </div>
+              )}
               <div className="profile-text">
                 <div className="profile-name">{user?.fullName || 'Recruiter'}</div>
                 <div className="profile-role">{user?.role ? `${user.role.charAt(0).toUpperCase()}${user.role.slice(1)}` : 'Recruiter'}</div>

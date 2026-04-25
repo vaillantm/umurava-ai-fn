@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
-import { exportScreening, getLatestScreening, listCandidates, runScreening, type ScreeningRecord } from '@/lib/backend';
+import { exportScreening, getLatestScreening, listCandidates, runScreening, type ScreeningRecord } from '@/lib/api';
 import { showToast } from '@/lib/toast';
 
 export default function ShortlistPage() {

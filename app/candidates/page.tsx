@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
-import { runScreening, listCandidates, listJobs, type CandidateRecord, type ScreeningResult } from '@/lib/backend';
+import { runScreening, listCandidates, listJobs, type CandidateRecord, type ScreeningResult } from '@/lib/api';
 import { showToast } from '@/lib/toast';
 
 const steps = ['Parse and normalize resumes', 'Extract structured profile data', 'Run AI scoring', 'Rank and create shortlist', 'Generate explanations'];
@@ -11,6 +11,7 @@ const steps = ['Parse and normalize resumes', 'Extract structured profile data',
 export default function CandidatesPage() {
   const router = useRouter();
   const [candidates, setCandidates] = useState<CandidateRecord[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [screeningOpen, setScreeningOpen] = useState(false);
@@ -26,6 +27,8 @@ export default function CandidatesPage() {
       if (!alive) return;
       setCandidates(candidateItems);
       setActiveJobId(jobItems[0]?.id || '');
+    }).finally(() => {
+      if (alive) setLoading(false);
     });
     return () => {
       alive = false;
@@ -103,7 +106,7 @@ export default function CandidatesPage() {
     >
       <div className="page-header">
         <div className="page-title">
-          Candidate Data Pool <span>{candidates.length ? `${candidates.length} candidates` : 'Loading...'}</span>
+          Candidate Data Pool <span>{loading ? 'Loading...' : candidates.length ? `${candidates.length} candidates` : 'No candidates yet'}</span>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <input
@@ -121,10 +124,35 @@ export default function CandidatesPage() {
       <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'DM Mono, monospace' }}>{selected.size} selected</div>
         <div style={{ flex: 1 }} />
-        <span className="badge badge-active">● {candidates.length ? `${candidates.length} in pool` : 'Loading...'}</span>
+        <span className="badge badge-active">● {loading ? 'Loading...' : candidates.length ? `${candidates.length} in pool` : '0 in pool'}</span>
       </div>
       <div className="candidates-grid">
-        {filtered.map((candidate) => {
+        {loading ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <div className="candidate-card" key={i} style={{ cursor: 'default' }}>
+              <div className="cand-top">
+                <div className="skeleton" style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0 }} />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div className="skeleton" style={{ height: 14, width: '60%' }} />
+                  <div className="skeleton" style={{ height: 11, width: '80%' }} />
+                </div>
+              </div>
+              <div className="cand-skills" style={{ gap: 6, marginTop: 12 }}>
+                {Array.from({ length: 3 }).map((_, j) => (
+                  <div className="skeleton" key={j} style={{ height: 22, width: 72, borderRadius: 999 }} />
+                ))}
+              </div>
+              <div className="cand-meta" style={{ marginTop: 12, gap: 12 }}>
+                <div className="skeleton" style={{ height: 11, width: 90 }} />
+                <div className="skeleton" style={{ height: 11, width: 60 }} />
+              </div>
+            </div>
+          ))
+        ) : filtered.length === 0 ? (
+          <div style={{ gridColumn: '1/-1', padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
+            No candidates found.
+          </div>
+        ) : filtered.map((candidate) => {
           const initials = `${candidate.personalInfo.firstName?.[0] || ''}${candidate.personalInfo.lastName?.[0] || ''}`.toUpperCase();
           const years = (candidate.experience || []).reduce((sum, entry) => {
             const start = new Date(entry.startDate);

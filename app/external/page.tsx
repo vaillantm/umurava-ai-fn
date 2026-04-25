@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ChangeEvent, DragEvent, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
-import { createCandidate, uploadCsv, uploadJson, uploadPdf, type CandidateRecord } from '@/lib/backend';
+import { createCandidate, uploadCsv, uploadJson, uploadPdf, type CandidateRecord } from '@/lib/api';
 import { showToast } from '@/lib/toast';
 
 type Mode = 'upload' | 'csv' | 'pdf' | 'manual';

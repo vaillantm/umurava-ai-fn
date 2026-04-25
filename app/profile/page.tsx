@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
-import { getCandidate, getLatestScreening, listCandidates, updateCandidateWithAvatar, type CandidateRecord } from '@/lib/backend';
+import { getCandidate, getLatestScreening, listCandidates, updateCandidateWithAvatar, type CandidateRecord } from '@/lib/api';
 import { showToast } from '@/lib/toast';
 
 export default function ProfilePage() {
