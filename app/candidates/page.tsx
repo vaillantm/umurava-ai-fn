@@ -20,12 +20,14 @@ export default function CandidatesPage() {
   const [progress, setProgress] = useState(0);
   const [screeningResults, setScreeningResults] = useState<ScreeningResult[]>([]);
   const [activeJobId, setActiveJobId] = useState<string>('');
+  const [jobOptions, setJobOptions] = useState<Array<{ id: string; title: string }>>([]);
 
   useEffect(() => {
     let alive = true;
     Promise.all([listCandidates(), listJobs()]).then(([candidateItems, jobItems]) => {
       if (!alive) return;
       setCandidates(candidateItems);
+      setJobOptions(jobItems.map((job) => ({ id: String(job.id || ''), title: job.title })));
       setActiveJobId(jobItems[0]?.id || '');
     }).finally(() => {
       if (alive) setLoading(false);
@@ -40,6 +42,11 @@ export default function CandidatesPage() {
     setStepIndex(-1);
     setComplete(false);
     setProgress(0);
+
+    if (!activeJobId) {
+      showToast('Select a job before screening candidates.', 'info');
+      return;
+    }
 
     const delays = [400, 1000, 2000, 3200, 4400];
     const durations = [500, 700, 900, 700, 500];
@@ -63,7 +70,7 @@ export default function CandidatesPage() {
     });
 
     runScreening({
-      jobId: activeJobId || 'active-job',
+      jobId: activeJobId,
       candidateIds: candidates.map((candidate) => String(candidate.id || '')),
       shortlistSize: 20
     }).then((result) => setScreeningResults(result.results || []));
@@ -109,6 +116,19 @@ export default function CandidatesPage() {
           Candidate Data Pool <span>{loading ? 'Loading...' : candidates.length ? `${candidates.length} candidates` : 'No candidates yet'}</span>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <select
+            value={activeJobId}
+            onChange={(event) => setActiveJobId(event.target.value)}
+            style={{ width: 280, padding: '8px 14px' }}
+            disabled={loading || !jobOptions.length}
+          >
+            <option value="">{loading ? 'Loading jobs...' : 'Select job to screen for'}</option>
+            {jobOptions.map((job) => (
+              <option key={job.id} value={job.id}>
+                {job.title}
+              </option>
+            ))}
+          </select>
           <input
             type="text"
             placeholder="Search data pool..."
@@ -123,6 +143,9 @@ export default function CandidatesPage() {
       </div>
       <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'DM Mono, monospace' }}>{selected.size} selected</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+          {activeJobId ? `Screening for ${jobOptions.find((job) => job.id === activeJobId)?.title || 'selected job'}` : 'Pick a job to enable screening'}
+        </div>
         <div style={{ flex: 1 }} />
         <span className="badge badge-active">● {loading ? 'Loading...' : candidates.length ? `${candidates.length} in pool` : '0 in pool'}</span>
       </div>
@@ -212,8 +235,19 @@ export default function CandidatesPage() {
               </span>{' '}
               AI Screening
             </div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 24, lineHeight: 1.5 }}>
-              Processing {candidates.length} candidates against the active job requirements...
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.5 }}>
+              Processing {candidates.length} candidates against the selected job requirements...
+            </div>
+            <div className="form-group" style={{ marginBottom: 18 }}>
+              <label>Screen candidates for which job?</label>
+              <select value={activeJobId} onChange={(event) => setActiveJobId(event.target.value)}>
+                <option value="">Select a job</option>
+                {jobOptions.map((job) => (
+                  <option key={job.id} value={job.id}>
+                    {job.title}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="progress-bar" style={{ marginBottom: 24 }}>
               <div className="progress-fill" style={{ width: `${progress}%` }} />
@@ -239,10 +273,10 @@ export default function CandidatesPage() {
               <button
                 className="btn btn-primary"
                 onClick={() => {
-                setScreeningOpen(false);
-                showToast(`AI screening complete. ${screeningResults.length} ranked results are ready.`, 'success');
-                router.push('/shortlist');
-              }}
+                  setScreeningOpen(false);
+                  showToast(`AI screening complete. ${screeningResults.length} ranked results are ready.`, 'success');
+                  router.push(activeJobId ? `/shortlist?jobId=${activeJobId}` : '/shortlist');
+                }}
                 style={{ display: complete ? 'inline-flex' : 'none' }}
                 type="button"
               >

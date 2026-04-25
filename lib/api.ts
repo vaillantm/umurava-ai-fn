@@ -31,6 +31,16 @@ function arr<T>(data: unknown, mapper: (x: any) => T): T[] {
   return [];
 }
 
+function withQuery(path: string, query: Record<string, string | number | undefined | null>): string {
+  const search = new URLSearchParams();
+  Object.entries(query).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    search.set(key, String(value));
+  });
+  const qs = search.toString();
+  return qs ? `${path}?${qs}` : path;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface JobRecord {
@@ -110,6 +120,12 @@ export interface ScreeningRecord {
   updatedAt?: string;
 }
 
+export interface DashboardSnapshot {
+  jobs: JobRecord[];
+  candidates: CandidateRecord[];
+  latestScreening: ScreeningRecord | null;
+}
+
 export type { AuthUser } from '@/lib/auth';
 
 // ─── Normalizers ──────────────────────────────────────────────────────────────
@@ -181,6 +197,14 @@ function normalizeScreening(x: any): ScreeningRecord | null {
     generatedBy: x?.generatedBy,
     createdAt: x?.createdAt,
     updatedAt: x?.updatedAt,
+  };
+}
+
+function normalizeDashboardSnapshot(data: any): DashboardSnapshot {
+  return {
+    jobs: Array.isArray(data?.jobs) ? data.jobs.map(normalizeJob) : [],
+    candidates: Array.isArray(data?.candidates) ? data.candidates.map(normalizeCandidate) : [],
+    latestScreening: normalizeScreening(data?.latestScreening ?? data?.screening ?? null),
   };
 }
 
@@ -265,6 +289,11 @@ export async function getLatestScreening(jobId?: string): Promise<ScreeningRecor
   }
 }
 
+export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
+  const data = await req<any>('/api/dashboard/snapshot', { method: 'GET' });
+  return normalizeDashboardSnapshot(data);
+}
+
 export async function runScreening(payload: { jobId: string; candidateIds: string[]; shortlistSize?: number }) {
   const data = await req<any>('/api/screenings/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   const s = data?.screening ?? data;
@@ -279,6 +308,38 @@ export async function runScreening(payload: { jobId: string; candidateIds: strin
   };
 }
 
+export async function runBulkScreening(payload: { jobId: string; files: File[]; shortlistSize?: number }) {
+  const form = new FormData();
+  form.append('jobId', payload.jobId);
+  if (typeof payload.shortlistSize === 'number') form.append('shortlistSize', String(payload.shortlistSize));
+  payload.files.forEach((file) => form.append('files', file));
+
+  const data = await req<any>('/api/screenings/bulk-run', { method: 'POST', body: form });
+  const s = data?.screening ?? data;
+  return {
+    jobId: String(s?.jobId || payload.jobId || ''),
+    totalCandidates: Number(s?.totalCandidates ?? 0),
+    shortlistedCount: Number(s?.shortlistedCount ?? 0),
+    averageScore: Number(s?.averageScore ?? 0),
+    summary: s?.summary || '',
+    results: Array.isArray(s?.results)
+      ? s.results.map((r: any) => ({
+          candidateId: String(r?.candidateId ?? r?.id ?? ''),
+          rank: Number(r?.rank ?? 0),
+          score: Number(r?.score ?? 0),
+          scoreBreakdown: r?.scoreBreakdown ?? {},
+          strengths: r?.strengths ?? [],
+          gaps: r?.gaps ?? [],
+          reasoning: r?.reasoning || '',
+          decision: r?.decision || 'review'
+        }))
+      : [],
+    incompleteCandidates: Array.isArray(s?.incompleteCandidates)
+      ? s.incompleteCandidates.map((c: any) => ({ candidateId: String(c?.candidateId ?? c?.id ?? ''), reason: c?.reason || 'Incomplete profile' }))
+      : [],
+  };
+}
+
 export async function exportScreening(screeningId: string): Promise<ScreeningRecord> {
   const data = await req<any>(`/api/screenings/${screeningId}/export`, { method: 'GET' });
   return normalizeScreening(data?.screening ?? data) as ScreeningRecord;
@@ -286,21 +347,28 @@ export async function exportScreening(screeningId: string): Promise<ScreeningRec
 
 // ─── Uploads ──────────────────────────────────────────────────────────────────
 
-export async function uploadJson(file: File): Promise<CandidateRecord[]> {
+export async function uploadJson(file: File, jobId?: string): Promise<CandidateRecord[]> {
   const form = new FormData(); form.append('file', file);
-  const data = await req<any>('/api/uploads/json', { method: 'POST', body: form });
+  const data = await req<any>(withQuery('/api/uploads/json', { jobId }), { method: 'POST', body: form });
   return arr(data?.candidates ?? data, normalizeCandidate);
 }
 
-export async function uploadCsv(file: File): Promise<CandidateRecord[]> {
+export async function uploadCsv(file: File, jobId?: string): Promise<CandidateRecord[]> {
   const form = new FormData(); form.append('file', file);
-  const data = await req<any>('/api/uploads/csv', { method: 'POST', body: form });
+  const data = await req<any>(withQuery('/api/uploads/csv', { jobId }), { method: 'POST', body: form });
   return arr(data?.candidates ?? data, normalizeCandidate);
 }
 
-export async function uploadPdf(file: File): Promise<CandidateRecord[]> {
+export async function uploadPdf(file: File, jobId?: string): Promise<CandidateRecord[]> {
   const form = new FormData(); form.append('file', file);
-  const data = await req<any>('/api/uploads/pdf', { method: 'POST', body: form });
+  const data = await req<any>(withQuery('/api/uploads/pdf', { jobId }), { method: 'POST', body: form });
+  return arr(data?.candidates ?? data, normalizeCandidate);
+}
+
+export async function uploadBulkPdf(files: File[], jobId?: string): Promise<CandidateRecord[]> {
+  const form = new FormData();
+  files.forEach((file) => form.append('files', file));
+  const data = await req<any>(withQuery('/api/uploads/bulk-pdf', { jobId }), { method: 'POST', body: form });
   return arr(data?.candidates ?? data, normalizeCandidate);
 }
 

@@ -1,28 +1,72 @@
 'use client';
 
 import Link from 'next/link';
-import { ChangeEvent, DragEvent, useState } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent, type DragEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
-import { createCandidate, uploadCsv, uploadJson, uploadPdf, type CandidateRecord } from '@/lib/api';
+import { createCandidate, listJobs, uploadBulkPdf, uploadCsv, uploadJson, type CandidateRecord, type JobRecord } from '@/lib/api';
 import { showToast } from '@/lib/toast';
 
 type Mode = 'upload' | 'csv' | 'pdf' | 'manual';
 
 export default function ExternalPage() {
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<Mode>('upload');
+  const [jobs, setJobs] = useState<JobRecord[]>([]);
+  const [loadingJobs, setLoadingJobs] = useState(true);
+  const [activeJobId, setActiveJobId] = useState('');
   const [jsonCandidates, setJsonCandidates] = useState<CandidateRecord[]>([]);
   const [csvCandidates, setCsvCandidates] = useState<CandidateRecord[]>([]);
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
   const [manualCount, setManualCount] = useState(0);
 
+  useEffect(() => {
+    let alive = true;
+    listJobs()
+      .then((items) => {
+        if (!alive) return;
+        setJobs(items);
+      })
+      .finally(() => {
+        if (alive) setLoadingJobs(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const jobId = searchParams.get('jobId') || '';
+    if (jobId) setActiveJobId(jobId);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!activeJobId && jobs.length) setActiveJobId(jobs[0].id || '');
+  }, [activeJobId, jobs]);
+
+  const activeJob = useMemo(
+    () => jobs.find((job) => String(job.id) === String(activeJobId)) || null,
+    [activeJobId, jobs]
+  );
+
+  const requireJob = () => {
+    if (!activeJobId) {
+      showToast('Select a job before uploading candidates.', 'info');
+      return false;
+    }
+    return true;
+  };
+
   const importCandidates = async (items: CandidateRecord[]) => {
-    showToast(`${items.length} candidates added to pool!`, 'success');
-    window.location.assign('/candidates');
+    if (!requireJob()) return;
+    showToast(`${items.length} candidates prepared for ${activeJob?.title || 'the selected job'}!`, 'success');
+    window.location.assign(`/candidates?jobId=${activeJobId}`);
   };
 
   const readJSON = async (file: File) => {
+    if (!requireJob()) return;
     try {
-      const imported = await uploadJson(file);
+      const imported = await uploadJson(file, activeJobId);
       setJsonCandidates(imported);
     } catch {
       showToast('Invalid JSON file. Please check the format.', 'info');
@@ -30,31 +74,36 @@ export default function ExternalPage() {
   };
 
   const readCSV = async (file: File) => {
+    if (!requireJob()) return;
     try {
-      const imported = await uploadCsv(file);
+      const imported = await uploadCsv(file, activeJobId);
       setCsvCandidates(imported);
     } catch {
       showToast('Could not parse the CSV file.', 'info');
     }
   };
 
-  const addPdfFiles = (files: File[]) => setPdfFiles((current) => [...current, ...files]);
+  const addPdfFiles = (files: File[]) => {
+    if (!requireJob()) return;
+    setPdfFiles((current) => [...current, ...files]);
+  };
 
   const parsePDFs = async () => {
-    const imports: CandidateRecord[] = [];
-    for (const file of pdfFiles) {
-      const parsed = await uploadPdf(file);
-      imports.push(...parsed);
-    }
+    if (!requireJob()) return;
+    const imports = await uploadBulkPdf(pdfFiles, activeJobId);
     setPdfFiles([]);
     setJsonCandidates([]);
     setCsvCandidates([]);
     await importCandidates(imports);
-    showToast(`${imports.length} PDF${imports.length !== 1 ? 's' : ''} parsed and added to pool!`, 'success');
+    showToast(`${imports.length} PDF${imports.length !== 1 ? 's' : ''} parsed and prepared for the job!`, 'success');
   };
 
   const onDrop = (event: DragEvent<HTMLDivElement>, kind: 'json' | 'csv' | 'pdf') => {
     event.preventDefault();
+    if (!activeJobId) {
+      showToast('Select a job first.', 'info');
+      return;
+    }
     const file = event.dataTransfer.files[0];
     if (!file) return;
     if (kind === 'json') void readJSON(file);
@@ -66,15 +115,38 @@ export default function ExternalPage() {
     <AppShell
       activeSidebar="external"
       navLinks={<div className="nav-link active">Bulk CV Upload</div>}
-      actions={<Link className="btn btn-ghost btn-sm" href="/candidates">View Candidate Pool</Link>}
+      actions={<Link className="btn btn-ghost btn-sm" href="/jobs">Choose Job</Link>}
     >
       <div className="page-header">
         <div className="page-title">
-          Bulk CV Upload <span>Add candidates to screening pool</span>
+          Bulk CV Upload <span>{activeJob ? `For ${activeJob.title}` : 'Select a job first'}</span>
         </div>
-        <Link className="btn btn-ghost btn-sm" href="/candidates">
-          View Pool
-        </Link>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <select
+            value={activeJobId}
+            onChange={(event) => setActiveJobId(event.target.value)}
+            style={{ minWidth: 260, padding: '8px 12px' }}
+            disabled={loadingJobs || !jobs.length}
+          >
+            <option value="">{loadingJobs ? 'Loading jobs...' : 'Select a job...'}</option>
+            {jobs.map((job) => (
+              <option key={String(job.id)} value={String(job.id)}>
+                {job.title} {job.company ? `- ${job.company}` : ''}
+              </option>
+            ))}
+          </select>
+          <Link className="btn btn-ghost btn-sm" href="/jobs">
+            Manage Jobs
+          </Link>
+        </div>
+      </div>
+
+      <div className="shortlist-banner" style={{ marginBottom: 24 }}>
+        <span className="material-symbols-outlined">info</span>
+        <div>
+          <strong>Uploads are job-scoped now</strong>
+          <p>Pick a job first, then import JSON, CSV, or PDFs. The backend receives `jobId` with every upload.</p>
+        </div>
       </div>
 
       <div className="mode-tabs">
@@ -102,9 +174,9 @@ export default function ExternalPage() {
             </span>
             <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Drop your JSON file here</div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
-              or click to browse - accepts <code style={{ background: 'var(--surface2)', padding: '2px 6px', borderRadius: 4 }}>.json</code> files with candidate arrays
+              or click to browse - the file will be imported into the selected job
             </div>
-            <button className="btn btn-primary btn-sm" type="button" onClick={() => document.getElementById('json-file-input')?.click()}>
+            <button className="btn btn-primary btn-sm" type="button" onClick={() => document.getElementById('json-file-input')?.click()} disabled={!activeJobId}>
               <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
                 folder_open
               </span>{' '}
@@ -118,13 +190,13 @@ export default function ExternalPage() {
               </span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 14, fontWeight: 700 }}>{jsonCandidates.length} candidate file loaded</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{jsonCandidates.length} candidates parsed</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{jsonCandidates.length} candidates parsed for {activeJob?.title || 'the selected job'}</div>
               </div>
               <button className="btn btn-primary btn-sm" type="button" onClick={() => void importCandidates(jsonCandidates)}>
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
                   add_circle
                 </span>{' '}
-                Add to Pool
+                Continue to Screening
               </button>
             </div>
           ) : null}
@@ -140,9 +212,9 @@ export default function ExternalPage() {
             </span>
             <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Drop your CSV file here</div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
-              Accepts <code style={{ background: 'var(--surface2)', padding: '2px 6px', borderRadius: 4 }}>.csv</code> files with one row per candidate
+              Candidate rows will be imported into the selected job.
             </div>
-            <button className="btn btn-primary btn-sm" type="button" onClick={() => document.getElementById('csv-file-input')?.click()}>
+            <button className="btn btn-primary btn-sm" type="button" onClick={() => document.getElementById('csv-file-input')?.click()} disabled={!activeJobId}>
               <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
                 folder_open
               </span>{' '}
@@ -156,13 +228,13 @@ export default function ExternalPage() {
               </span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 14, fontWeight: 700 }}>{csvCandidates.length} valid rows parsed</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Ready to import</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Ready for {activeJob?.title || 'the selected job'}</div>
               </div>
               <button className="btn btn-primary btn-sm" type="button" onClick={() => void importCandidates(csvCandidates)}>
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
                   add_circle
                 </span>{' '}
-                Add to Pool
+                Continue to Screening
               </button>
             </div>
           ) : null}
@@ -177,8 +249,10 @@ export default function ExternalPage() {
               picture_as_pdf
             </span>
             <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Drop PDF resumes here</div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>Upload multiple .pdf files - the backend upload endpoint will parse each resume.</div>
-            <button className="btn btn-primary btn-sm" type="button" onClick={() => document.getElementById('pdf-file-input')?.click()}>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
+              Upload one or more PDFs for the selected job.
+            </div>
+            <button className="btn btn-primary btn-sm" type="button" onClick={() => document.getElementById('pdf-file-input')?.click()} disabled={!activeJobId}>
               <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
                 folder_open
               </span>{' '}
@@ -204,7 +278,7 @@ export default function ExternalPage() {
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
                   smart_toy
                 </span>{' '}
-                Parse with AI & Add to Pool
+                Parse with AI & Add to Job
               </button>
             </div>
           ) : null}
@@ -215,10 +289,11 @@ export default function ExternalPage() {
         <div className="mode-panel active">
           <div className="form-section">
             <div className="form-section-title">Manual Entry</div>
-            <p className="settings-desc">Quick mock entry to add a blank profile.</p>
+            <p className="settings-desc">Quick mock entry to add a blank profile into the selected job flow.</p>
             <button
               className="btn btn-primary"
               type="button"
+              disabled={!activeJobId}
               onClick={() => {
                 setManualCount((count) => count + 1);
                 void createCandidate({
@@ -242,7 +317,7 @@ export default function ExternalPage() {
                   socialLinks: {}
                 } as CandidateRecord).then(() => {
                   showToast('Profile added successfully!', 'success');
-                  window.location.assign('/candidates');
+                  window.location.assign(`/candidates?jobId=${activeJobId}`);
                 });
               }}
             >

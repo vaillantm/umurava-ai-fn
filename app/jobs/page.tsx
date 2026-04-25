@@ -246,13 +246,25 @@ export default function JobsPage() {
                 Edit
               </button>
               {job.id ? (
+                <Link className="btn btn-ghost btn-sm" href={`/external?jobId=${job.id}`}>
+                  Upload Candidates
+                </Link>
+              ) : null}
+              {job.id ? (
+                <Link className="btn btn-ghost btn-sm" href={`/candidates?jobId=${job.id}`}>
+                  Run Screening
+                </Link>
+              ) : null}
+              {job.id ? (
+                <Link className="btn btn-ghost btn-sm" href={`/shortlist?jobId=${job.id}`}>
+                  View Shortlist
+                </Link>
+              ) : null}
+              {job.id ? (
                 <button className="btn btn-ghost btn-sm" type="button" onClick={() => void handleDelete(job.id)}>
                   Delete
                 </button>
               ) : null}
-              <Link className="btn btn-ghost btn-sm" href="/candidates">
-                Candidates
-              </Link>
             </div>
           </div>
         ))}

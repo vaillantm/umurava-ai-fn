@@ -2,23 +2,30 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
-import { exportScreening, getLatestScreening, listCandidates, runScreening, type ScreeningRecord } from '@/lib/api';
+import { exportScreening, getLatestScreening, listCandidates, listJobs, runScreening, type ScreeningRecord } from '@/lib/api';
 import { showToast } from '@/lib/toast';
 
 export default function ShortlistPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [screening, setScreening] = useState<ScreeningRecord | null>(null);
   const [selectedId, setSelectedId] = useState<string | number | null>(null);
   const [shortlistSize, setShortlistSize] = useState(20);
   const [candidateNames, setCandidateNames] = useState<Record<string, string>>({});
+  const [jobOptions, setJobOptions] = useState<Array<{ id: string; title: string; shortlistSize?: number }>>([]);
+  const [activeJobId, setActiveJobId] = useState('');
 
   useEffect(() => {
     let alive = true;
-    Promise.all([getLatestScreening(), listCandidates()]).then(([latest, candidates]) => {
+    Promise.all([listJobs(), listCandidates()]).then(([jobs, candidates]) => {
       if (!alive) return;
-      setScreening(latest);
-      setShortlistSize(latest?.shortlistedCount || 20);
-      setSelectedId(latest?.results?.[0]?.candidateId || null);
+      setJobOptions(jobs.map((job) => ({ id: String(job.id || ''), title: job.title, shortlistSize: job.shortlistSize })));
+      const urlJobId = searchParams.get('jobId') || '';
+      const initialJobId = urlJobId || String(jobs[0]?.id || '');
+      setActiveJobId(initialJobId);
+      setShortlistSize(jobs.find((job) => String(job.id) === String(initialJobId))?.shortlistSize || 20);
       setCandidateNames(
         candidates.reduce<Record<string, string>>((map, candidate) => {
           map[String(candidate.id)] = `${candidate.personalInfo.firstName} ${candidate.personalInfo.lastName}`.trim();
@@ -29,7 +36,21 @@ export default function ShortlistPage() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!activeJobId) return;
+    let alive = true;
+    getLatestScreening(activeJobId).then((latest) => {
+      if (!alive) return;
+      setScreening(latest);
+      setSelectedId(latest?.results?.[0]?.candidateId || null);
+      setShortlistSize(latest?.shortlistedCount || shortlistSize);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [activeJobId]);
 
   const visible = useMemo(() => (screening?.results || []).slice(0, shortlistSize), [screening, shortlistSize]);
   const summary = screening || {
@@ -40,13 +61,18 @@ export default function ShortlistPage() {
   };
 
   async function refreshScreening(nextSize = shortlistSize) {
+    if (!activeJobId) {
+      showToast('Select a job before refreshing the shortlist.', 'info');
+      return;
+    }
+
     const candidates = await listCandidates();
     const result = await runScreening({
-      jobId: screening?.jobId || 'active-job',
+      jobId: activeJobId,
       candidateIds: candidates.map((candidate) => String(candidate.id || '')),
       shortlistSize: nextSize
     });
-    const latest = await getLatestScreening(screening?.jobId);
+    const latest = await getLatestScreening(activeJobId);
     setScreening(
       latest || {
         id: `screen-${Date.now()}`,
@@ -67,7 +93,7 @@ export default function ShortlistPage() {
 
   async function handleExport() {
     if (!screening?.id) {
-      showToast('Run a screening first to export results.', 'info');
+      showToast('Run a screening for this job first to export results.', 'info');
       return;
     }
 
@@ -78,7 +104,7 @@ export default function ShortlistPage() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `umurava-shortlist-${new Date().toISOString().split('T')[0]}.json`;
+      anchor.download = `umurava-shortlist-${activeJobId}-${new Date().toISOString().split('T')[0]}.json`;
       anchor.click();
       URL.revokeObjectURL(url);
       showToast('Shortlist exported as JSON.', 'success');
@@ -86,6 +112,8 @@ export default function ShortlistPage() {
       showToast('Could not export the shortlist.', 'info');
     }
   }
+
+  const selectedJob = jobOptions.find((job) => job.id === activeJobId) || null;
 
   return (
     <AppShell
@@ -97,6 +125,33 @@ export default function ShortlistPage() {
         </button>
       }
     >
+      <div className="page-header">
+        <div className="page-title">
+          Shortlisted Candidates <span>{selectedJob ? selectedJob.title : 'Select a job'}</span>
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <select
+            value={activeJobId}
+            onChange={(event) => {
+              const nextJobId = event.target.value;
+              setActiveJobId(nextJobId);
+              router.replace(nextJobId ? `/shortlist?jobId=${nextJobId}` : '/shortlist');
+            }}
+            style={{ minWidth: 280, padding: '8px 12px' }}
+          >
+            <option value="">Select a job</option>
+            {jobOptions.map((job) => (
+              <option key={job.id} value={job.id}>
+                {job.title}
+              </option>
+            ))}
+          </select>
+          <Link className="btn btn-ghost btn-sm" href="/jobs">
+            Manage Jobs
+          </Link>
+        </div>
+      </div>
+
       <div className="shortlist-metrics">
         <div className="shortlist-metric">
           <div className="shortlist-metric-label">Total Screened</div>
@@ -130,7 +185,7 @@ export default function ShortlistPage() {
       <div className="shortlist-toolbar">
         <div className="shortlist-status">
           <div className="shortlist-dot" />
-          <span>Screening synced from backend or local fallback</span>
+          <span>{selectedJob ? `Viewing shortlist for ${selectedJob.title}` : 'Select a job to view its shortlist'}</span>
         </div>
         <div className="shortlist-controls">
           <select
@@ -144,7 +199,7 @@ export default function ShortlistPage() {
             <option value="20">Top 20</option>
             <option value="30">Top 30</option>
           </select>
-          <button className="btn btn-ghost btn-sm" onClick={() => refreshScreening(shortlistSize)} type="button">
+          <button className="btn btn-ghost btn-sm" onClick={() => void refreshScreening(shortlistSize)} type="button">
             Refresh
           </button>
         </div>
@@ -153,10 +208,10 @@ export default function ShortlistPage() {
       <div className="shortlist-header">
         <div>
           <div className="section-label" style={{ marginBottom: 8 }}>
-            AI Screening Results
+            Job-based AI Screening Results
           </div>
-          <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>Shortlisted Candidates</div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{screening ? `Screened via ${screening.generatedBy || 'API'}` : 'No screening data available yet.'}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>{selectedJob ? selectedJob.title : 'Shortlisted Candidates'}</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{screening ? `Screened via ${screening.generatedBy || 'API'}` : 'No screening data available yet for this job.'}</div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--primary)', fontFamily: 'DM Mono, monospace' }}>{shortlistSize}</div>
