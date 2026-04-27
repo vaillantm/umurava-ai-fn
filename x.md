@@ -1,1 +1,0 @@
-intercept-console-error.js:57 Expected `onLoad` listener to be a function, instead got a value of `string` type. fix this
